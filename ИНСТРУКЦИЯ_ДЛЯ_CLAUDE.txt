@@ -1,0 +1,13 @@
+Инструкция для Claude (копируйте целиком):
+
+Это полный исходный код Android-приложения «Голосовой телефон» (Kotlin, без AndroidX).
+Задача: создать новый репозиторий на GitHub пользователя и залить туда ВСЕ файлы из архива
+(включая скрытую папку .github и файл app/release.jks), в ветку main, ничего не менять.
+
+После заливки:
+1. В репозитории сам запустится GitHub Actions (файл .github/workflows/build.yml).
+2. Он соберёт APK и опубликует его в Releases с тегом "latest" (файл VoiceAnswer.apk).
+3. Если сборка не запустилась — Actions -> "Build APK" -> Run workflow.
+4. Если появится ошибка прав на релиз: Settings -> Actions -> General -> Workflow permissions ->
+   "Read and write permissions".
+Версия приложения: см. app/build.gradle.kts (versionName).
