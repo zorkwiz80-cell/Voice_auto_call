@@ -20,11 +20,9 @@ object Prefs {
     const val K_HEADSET_MIC = "headset_mic"
     const val K_ANNOUNCE = "announce"
     const val K_QUIET_RINGER = "quiet_ringer"
-    const val K_AUTO_REC = "auto_rec"
     const val K_WAKE = "wake_on"
     const val K_WAKE_MEDIA = "wake_media"
     const val K_CLEAR_VOICE = "clear_voice"
-    const val K_REC_SPEAKER = "rec_speaker"
     const val K_RAMP = "ramp_ring"
 
     fun voiceEnabled(c: Context) = flag(c, K_VOICE, true)
@@ -35,7 +33,6 @@ object Prefs {
     fun headsetMic(c: Context) = flag(c, K_HEADSET_MIC, true)
     fun announce(c: Context) = flag(c, K_ANNOUNCE, true)
     fun quietRinger(c: Context) = flag(c, K_QUIET_RINGER, false)
-    fun autoRec(c: Context) = flag(c, K_AUTO_REC, false)
     fun beepMuted(c: Context): Set<Int> =
         (p(c).getString("beep_muted", "") ?: "").split(',').mapNotNull { it.toIntOrNull() }.toSet()
 
@@ -50,23 +47,7 @@ object Prefs {
     fun clearVoice(c: Context) = flag(c, K_CLEAR_VOICE, true)
     fun wakeWord(c: Context): String = p(c).getString("wake_word", null)?.takeIf { it.isNotBlank() } ?: "абобус"
     fun setWakeWord(c: Context, w: String) = p(c).edit().putString("wake_word", Logic.cleanWord(w)).apply()
-    fun recSpeaker(c: Context) = flag(c, K_REC_SPEAKER, true)
 
-    /** Лимит автозаписи в секундах, 0 = без ограничения. */
-    fun recMaxSeconds(c: Context): Int = p(c).getInt("rec_max", 0)
-    fun setRecMaxSeconds(c: Context, s: Int) = p(c).edit().putInt("rec_max", s).apply()
-
-    /** Причина, по которой запись на этом телефоне не работает (null — работает). */
-    fun recBroken(c: Context): String? {
-        // в прежних версиях запись могла быть ошибочно помечена как неработающая — один раз сбрасываем
-        if (!p(c).getBoolean("rec_fix_done", false)) {
-            p(c).edit().putBoolean("rec_fix_done", true).remove("rec_broken").remove("rec_fail").apply()
-        }
-        return p(c).getString("rec_broken", null)
-    }
-    fun setRecBroken(c: Context, why: String?) {
-        if (why == null) p(c).edit().remove("rec_broken").apply() else p(c).edit().putString("rec_broken", why).apply()
-    }
 
     fun get(c: Context, key: String): Boolean = when (key) {
         K_VOICE -> voiceEnabled(c)
@@ -77,11 +58,9 @@ object Prefs {
         K_HEADSET_MIC -> headsetMic(c)
         K_ANNOUNCE -> announce(c)
         K_QUIET_RINGER -> quietRinger(c)
-        K_AUTO_REC -> autoRec(c)
         K_WAKE -> wakeOn(c)
         K_WAKE_MEDIA -> wakeDuringMedia(c)
         K_CLEAR_VOICE -> clearVoice(c)
-        K_REC_SPEAKER -> recSpeaker(c)
         K_RAMP -> rampRing(c)
         else -> false
     }
@@ -142,10 +121,6 @@ object Prefs {
     fun setRampRing(c: Context, v: Boolean) = p(c).edit().putBoolean("ramp_ring", v).apply()
     fun rampSeconds(c: Context): Int = p(c).getInt("ramp_sec", 12)
     fun setRampSeconds(c: Context, s: Int) = p(c).edit().putInt("ramp_sec", s).apply()
-
-    /** Способ записи: "system" — диктофон самого телефона, "app" — запись внутри приложения. */
-    fun recMode(c: Context): String = p(c).getString("rec_mode", "system") ?: "system"
-    fun setRecMode(c: Context, m: String) = p(c).edit().putString("rec_mode", m).apply()
 
     /** Фоновая тема: none, newyear, winter, summer, spring, autumn, custom. */
     fun bgTheme(c: Context): String = p(c).getString("bg_theme", "none") ?: "none"

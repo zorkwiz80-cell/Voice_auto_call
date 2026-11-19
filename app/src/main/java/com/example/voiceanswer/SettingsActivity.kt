@@ -164,7 +164,7 @@ class SettingsActivity : BaseActivity() {
         buildLook(col)
         buildHelp(col)
 
-        val about = Ui.text(a, "Голосовой телефон 3.20", 13f, Theme.sub)
+        val about = Ui.text(a, "Голосовой телефон 3.21", 13f, Theme.sub)
         about.gravity = Gravity.CENTER
         col.addView(about, Ui.margins(Ui.lp(Ui.MATCH, Ui.WRAP), 0, Ui.dp(a, 20), 0, 0))
 
@@ -324,41 +324,23 @@ class SettingsActivity : BaseActivity() {
     private fun buildRecording(col: LinearLayout) {
         val a = this
         val c = card(
-            col, "Записи разговоров",
-            "Android не даёт приложениям включать системную запись звонков. Поэтому кнопка «Запись» открывает диктофон самого телефона и включает громкую связь, чтобы записать и собеседника."
+            col, "Запись разговоров",
+            "В этом приложении записи разговоров нет. Запись ведёт стандартное приложение «Телефон» вашего производителя (Google, Samsung, Xiaomi и др.) — включите там автоматическую запись звонков."
         )
-        label(c, "СПОСОБ ЗАПИСИ")
-        choices(c, listOf("system" to "Диктофон телефона", "app" to "Запись в приложении"), Prefs.recMode(a)) {
-            Prefs.setRecMode(a, it)
-            rebuild()
-        }
-        if (Prefs.recMode(a) == "system") {
-            c.addView(
-                Ui.text(a, "Если на вашем телефоне есть собственная запись звонков (Google, Samsung, Xiaomi и др.), она доступна только в стандартном приложении «Телефон» производителя.", 13f, Theme.sub),
-                Ui.margins(Ui.lp(Ui.MATCH, Ui.WRAP), 0, Ui.dp(a, 8), 0, 0)
-            )
-        } else {
-            switchRow(c, "Автозапись", "Начинать запись сразу, как только разговор начался", Prefs.K_AUTO_REC)
-            label(c, "АВТОЗАПИСЬ ИДЁТ НЕ БОЛЬШЕ")
-            val opts = listOf("0" to "Без ограничения", "60" to "1 мин", "300" to "5 мин", "600" to "10 мин", "1800" to "30 мин", "3600" to "1 час")
-            choices(c, opts, Prefs.recMaxSeconds(a).toString()) {
-                Prefs.setRecMaxSeconds(a, it.toInt())
-                rebuild()
+        c.addView(
+            Ui.text(a, "Android не позволяет другому приложению включать системную запись. Стандартное приложение работает со звонками, только пока оно выбрано основным для звонков: выберите его в списке приложений по умолчанию (в разделе «Приложение для звонков»).", 13f, Theme.sub),
+            Ui.margins(Ui.lp(Ui.MATCH, Ui.WRAP), 0, Ui.dp(a, 4), 0, 0)
+        )
+        c.addView(pill("Открыть приложения по умолчанию") {
+            try {
+                startActivity(Intent(android.provider.Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS))
+            } catch (e: Exception) {
+                try {
+                    startActivity(Intent(android.provider.Settings.ACTION_SETTINGS))
+                } catch (_: Exception) {
+                    Toast.makeText(a, "Не удалось открыть настройки", Toast.LENGTH_LONG).show()
+                }
             }
-            val why = Prefs.recBroken(a)
-            if (why != null) {
-                c.addView(
-                    Ui.text(a, "✗ Запись на этом телефоне не работает: $why", 14f, Theme.RED),
-                    Ui.margins(Ui.lp(Ui.MATCH, Ui.WRAP), 0, Ui.dp(a, 6), 0, 0)
-                )
-                c.addView(softPill("Проверить запись заново") {
-                    Prefs.setRecBroken(a, null)
-                    rebuild()
-                }, Ui.margins(Ui.lp(Ui.WRAP, Ui.WRAP), 0, Ui.dp(a, 10), 0, 0))
-            }
-        }
-        c.addView(pill("Журнал записей") {
-            startActivity(Intent(a, RecordingsActivity::class.java))
         }, Ui.margins(Ui.lp(Ui.WRAP, Ui.WRAP), 0, Ui.dp(a, 14), 0, 0))
     }
 

@@ -70,7 +70,6 @@ class InCallActivity : BaseActivity(), Calls.Listener {
     private lateinit var bKeypad: ControlButton
     private lateinit var bSpeaker: ControlButton
     private lateinit var bHold: ControlButton
-    private lateinit var bRecord: ControlButton
     private lateinit var bAdd: ControlButton
     private lateinit var bHeadset: ControlButton
     private lateinit var bMerge: ControlButton
@@ -265,8 +264,6 @@ class InCallActivity : BaseActivity(), Calls.Listener {
             } catch (_: Exception) {
             }
         }
-        bRecord = ControlButton(a, R.drawable.ic_mic, "Запись", cs)
-        bRecord.setOnClickListener { toggleRecord() }
         bAdd = ControlButton(a, R.drawable.ic_add, "Добавить", cs)
         bAdd.setOnClickListener {
             val i = Intent(a, MainActivity::class.java)
@@ -287,7 +284,7 @@ class InCallActivity : BaseActivity(), Calls.Listener {
         bSwap.setOnClickListener { Calls.swap() }
 
         row1 = rowOf(bMute, bKeypad, bSpeaker)
-        row2 = rowOf(bHold, bRecord, bAdd)
+        row2 = rowOf(bHold, bAdd)
         row3 = rowOf(bHeadset, bMerge, bSwap)
         activeBox.addView(row1, Ui.lp(Ui.MATCH, Ui.WRAP))
         activeBox.addView(row2, Ui.margins(Ui.lp(Ui.MATCH, Ui.WRAP), 0, Ui.dp(a, 10), 0, 0))
@@ -358,24 +355,6 @@ class InCallActivity : BaseActivity(), Calls.Listener {
             dtmfText = ""
             dtmfTv.text = ""
         }
-    }
-
-    private fun toggleRecord() {
-        if (Recorder.active) {
-            Recorder.stop(this)
-        } else if (Prefs.recMode(this) == "system" && Recorder.openSystemRecorder(this)) {
-            return
-        } else {
-            val why = Prefs.recBroken(this)
-            if (why != null) {
-                Toast.makeText(this, "Запись на этом телефоне недоступна: $why. Сбросить можно в настройках.", Toast.LENGTH_LONG).show()
-            } else {
-                val inf = Calls.info(Calls.primary())
-                val err = Recorder.start(this, inf?.name ?: Calls.formatNumber(inf?.number ?: ""), inf?.number ?: "", false)
-                if (err != null) Toast.makeText(this, err, Toast.LENGTH_LONG).show()
-            }
-        }
-        render()
     }
 
     // ------------------------------------------------------------------ жизненный цикл
@@ -503,10 +482,6 @@ class InCallActivity : BaseActivity(), Calls.Listener {
         bSpeaker.setActive(Calls.isSpeakerOn())
         bHold.setActive(holding)
         bHold.setLabel(if (holding) "Продолжить" else "Пауза")
-        val recBroken = Prefs.recMode(this) == "app" && Prefs.recBroken(this) != null && !Recorder.active
-        bRecord.setUnavailable(recBroken)
-        if (!recBroken) bRecord.setActive(Recorder.active)
-        bRecord.setLabel(if (recBroken) "Запись недоступна" else if (Recorder.active) "Идёт запись" else "Запись")
         val headset = Calls.headsetKind(this)
         val rt = Calls.audioState?.route
         bHeadset.visibility = if (headset == Calls.Headset.NONE) View.INVISIBLE else View.VISIBLE

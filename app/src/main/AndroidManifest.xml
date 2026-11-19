@@ -17,9 +17,7 @@
     <uses-permission android:name="android.permission.VIBRATE" />
 
     <queries>
-        <intent>
-            <action android:name="android.provider.MediaStore.RECORD_SOUND" />
-        </intent>
+
         <intent>
             <action android:name="android.speech.RecognitionService" />
         </intent>
@@ -71,9 +69,6 @@
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
 
-        <activity
-            android:name=".RecordingsActivity"
-            android:exported="false" />
         <activity
             android:name=".ContactEditActivity"
             android:exported="false"

@@ -40,7 +40,6 @@ object Calls {
         var answeredHere = false
         var route: Int? = null
         var maxVolume = false
-        var autoRecTried = false
     }
 
     interface Listener {
@@ -165,7 +164,6 @@ object Calls {
             stopAnnounce()
             Ringer.stop()
         }
-        if (calls.isEmpty()) Recorder.stop(ctx)
         CallNotifier.update(ctx)
         notifyChanged()
     }
@@ -393,18 +391,6 @@ object Calls {
         }
     }
 
-    private fun autoRecord(call: Call, info: Info) {
-        val ctx = app ?: return
-        if (info.autoRecTried || Prefs.recMode(ctx) != "app" || !Prefs.autoRec(ctx) || Prefs.recBroken(ctx) != null) return
-        info.autoRecTried = true
-        handler.postDelayed({
-            if (infos.containsKey(call) && call.state == Call.STATE_ACTIVE && !Recorder.active) {
-                val err = Recorder.start(ctx, info.name ?: formatNumber(info.number), info.number, true)
-                if (err != null) android.widget.Toast.makeText(ctx, err, android.widget.Toast.LENGTH_LONG).show()
-            }
-        }, 800)
-    }
-
     /** Чёткий голос: микрофон включён и шумоподавление (где телефон его поддерживает). */
     private fun clearVoice(ctx: Context) {
         try {
@@ -421,7 +407,6 @@ object Calls {
     }
 
     private fun onActive(call: Call, info: Info) {
-        autoRecord(call, info)
         app?.let { restoreRingVolume(it) }
         app?.let { if (Prefs.clearVoice(it)) clearVoice(it) }
         val route = info.route ?: return

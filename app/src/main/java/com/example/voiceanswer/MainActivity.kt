@@ -286,7 +286,6 @@ class MainActivity : BaseActivity() {
         top.gravity = Gravity.END or Gravity.CENTER_VERTICAL
         if (withSearch) top.addView(iconButton(R.drawable.ic_search) { toggleSearch() })
         top.addView(iconButton(R.drawable.ic_mic) { startVoiceCall() })
-        top.addView(iconButton(R.drawable.ic_record) { startActivity(Intent(a, RecordingsActivity::class.java)) })
         top.addView(iconButton(R.drawable.ic_settings) { startActivity(Intent(a, SettingsActivity::class.java)) })
         h.addView(top, Ui.margins(Ui.lp(Ui.MATCH, Ui.WRAP), 0, Ui.dp(a, 8), Ui.dp(a, 10), 0))
         val t = Ui.light(a, title, 38f, Theme.text)
