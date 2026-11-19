@@ -316,13 +316,11 @@ class InCallActivity : BaseActivity(), Calls.Listener {
         setContentView(root)
     }
 
-    private fun rowOf(x: ControlButton, y: ControlButton, z: ControlButton): LinearLayout {
+    private fun rowOf(vararg buttons: ControlButton): LinearLayout {
         val r = LinearLayout(this)
         r.orientation = LinearLayout.HORIZONTAL
         r.gravity = Gravity.CENTER
-        r.addView(x, Ui.lp(0, Ui.WRAP, 1f))
-        r.addView(y, Ui.lp(0, Ui.WRAP, 1f))
-        r.addView(z, Ui.lp(0, Ui.WRAP, 1f))
+        for (b in buttons) r.addView(b, Ui.lp(0, Ui.WRAP, 1f))
         return r
     }
 
