@@ -40,6 +40,15 @@ object Theme {
     var line = 0x22FFFFFF
     var light = false
 
+    /** Фоновая тема (новогодняя, зимняя…) и прозрачность панелей. */
+    var bgTheme = "none"
+    var transparency = 0
+    var customVer = 0L
+    /** Цвет нижней панели и панели набора номера (с учётом прозрачности). */
+    var panel = 0xFF000000.toInt()
+
+    val themed: Boolean get() = bgTheme != "none" && (bgTheme != "custom" || customVer > 0L)
+
     val rainbow: Boolean get() = accentId == "rainbow"
 
     /** Текущий акцентный цвет. У радужного темы меняется со временем. */
@@ -71,9 +80,30 @@ object Theme {
                 text = 0xFFFFFFFF.toInt(); sub = 0xFF8E8E93.toInt(); line = 0x22FFFFFF
             }
         }
+        bgTheme = Prefs.bgTheme(c)
+        transparency = Prefs.transparency(c)
+        customVer = Prefs.customBgVersion(c)
+        panel = bg
+        if (themed && transparency > 0) {
+            val a = (100 - transparency) * 255 / 100
+            card = withAlpha(card, a)
+            card2 = withAlpha(card2, a)
+            panel = withAlpha(bg, a)
+        }
     }
 
-    fun signature(): String = "$accentId/$hue/$bgMode"
+    private fun withAlpha(color: Int, a: Int): Int = Color.argb(a, Color.red(color), Color.green(color), Color.blue(color))
+
+    /** Фон окна: рисунок темы или обычный цвет. */
+    fun windowDrawable(c: Context): android.graphics.drawable.Drawable {
+        if (themed) {
+            val d = Backgrounds.drawable(c, bgTheme)
+            if (d != null) return d
+        }
+        return android.graphics.drawable.ColorDrawable(bg)
+    }
+
+    fun signature(): String = "$accentId/$hue/$bgMode/$bgTheme/$transparency/$customVer"
 
     /** Смешивает два цвета: t = 0 → a, t = 1 → b. */
     fun mix(a: Int, b: Int, t: Float): Int {

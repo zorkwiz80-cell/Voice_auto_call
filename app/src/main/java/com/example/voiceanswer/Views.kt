@@ -49,8 +49,14 @@ abstract class BaseActivity : Activity() {
         super.onCreate(savedInstanceState)
         Theme.load(this)
         builtSignature = Theme.signature()
-        window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Theme.bg))
-        applyBars(Theme.bg, Theme.bg)
+        applyWindowTheme()
+    }
+
+    /** Фон окна и цвет системных панелей по текущей теме. */
+    protected fun applyWindowTheme() {
+        window.setBackgroundDrawable(Theme.windowDrawable(this))
+        val bar = if (Theme.themed) Color.TRANSPARENT else Theme.bg
+        applyBars(bar, bar)
     }
 
     /** Подписывает действие на смену акцентного цвета (для радужной темы вызывается постоянно). */

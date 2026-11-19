@@ -363,6 +363,8 @@ class InCallActivity : BaseActivity(), Calls.Listener {
     private fun toggleRecord() {
         if (Recorder.active) {
             Recorder.stop(this)
+        } else if (Prefs.recMode(this) == "system" && Recorder.openSystemRecorder(this)) {
+            return
         } else {
             val why = Prefs.recBroken(this)
             if (why != null) {
@@ -413,6 +415,14 @@ class InCallActivity : BaseActivity(), Calls.Listener {
 
     override fun onCallsChanged() {
         render()
+    }
+
+    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent?): Boolean {
+        // Кнопка громкости заглушает рингтон, как в обычном телефоне
+        if ((keyCode == android.view.KeyEvent.KEYCODE_VOLUME_UP || keyCode == android.view.KeyEvent.KEYCODE_VOLUME_DOWN) &&
+            Calls.ringing() != null
+        ) Calls.silence(this)
+        return super.onKeyDown(keyCode, event)
     }
 
     @Deprecated("Deprecated in Java")
@@ -493,7 +503,7 @@ class InCallActivity : BaseActivity(), Calls.Listener {
         bSpeaker.setActive(Calls.isSpeakerOn())
         bHold.setActive(holding)
         bHold.setLabel(if (holding) "Продолжить" else "Пауза")
-        val recBroken = Prefs.recBroken(this) != null && !Recorder.active
+        val recBroken = Prefs.recMode(this) == "app" && Prefs.recBroken(this) != null && !Recorder.active
         bRecord.setUnavailable(recBroken)
         if (!recBroken) bRecord.setActive(Recorder.active)
         bRecord.setLabel(if (recBroken) "Запись недоступна" else if (Recorder.active) "Идёт запись" else "Запись")

@@ -35,6 +35,10 @@ class SettingsActivity : BaseActivity() {
     private var testButton: TextView? = null
     private var built = false
 
+    private companion object {
+        const val REQ_IMAGE = 77
+    }
+
     override fun recreateOnThemeChange(): Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -58,8 +62,7 @@ class SettingsActivity : BaseActivity() {
         clearAccentUpdaters()
         Theme.load(this)
         markThemeBuilt()
-        window.setBackgroundDrawable(ColorDrawable(Theme.bg))
-        applyBars(Theme.bg, Theme.bg)
+        applyWindowTheme()
         build()
         scroll.post { scroll.scrollY = y }
     }
@@ -154,13 +157,14 @@ class SettingsActivity : BaseActivity() {
 
         buildStatus(col)
         buildVoice(col)
+        buildRinging(col)
         buildWords(col)
         buildRecording(col)
         buildTest(col)
         buildLook(col)
         buildHelp(col)
 
-        val about = Ui.text(a, "Голосовой телефон 3.19", 13f, Theme.sub)
+        val about = Ui.text(a, "Голосовой телефон 3.20", 13f, Theme.sub)
         about.gravity = Gravity.CENTER
         col.addView(about, Ui.margins(Ui.lp(Ui.MATCH, Ui.WRAP), 0, Ui.dp(a, 20), 0, 0))
 
@@ -202,6 +206,45 @@ class SettingsActivity : BaseActivity() {
         switchRow(c, "Если подключены наушники", "Говорить через наушники, динамик не включать", Prefs.K_HEADSET_FIRST)
         switchRow(c, "Слушать команды через наушники", "Bluetooth-наушники: микрофон наушников (по возможности)", Prefs.K_HEADSET_MIC)
         switchRow(c, "Тихий рингтон", "Когда звонят, громкость звонка 50%; после звонка возвращается прежняя", Prefs.K_QUIET_RINGER)
+    }
+
+    /** Ряд кнопок-вариантов: выбранный подсвечен цветом темы. */
+    private fun choices(parent: LinearLayout, options: List<Pair<String, String>>, current: String, onPick: (String) -> Unit) {
+        val a = this
+        val flow = FlowLayout(a)
+        flow.hGap = Ui.dp(a, 8)
+        flow.vGap = Ui.dp(a, 8)
+        for ((id, name) in options) {
+            val b = if (id == current) pill(name) {} else softPill(name) { onPick(id) }
+            flow.addView(b)
+        }
+        parent.addView(flow, Ui.lp(Ui.MATCH, Ui.WRAP))
+    }
+
+    private fun buildRinging(col: LinearLayout) {
+        val a = this
+        val c = card(col, "Входящий звонок")
+        label(c, "КАК ПОКАЗЫВАТЬ ВХОДЯЩИЙ")
+        choices(c, listOf("full" to "На весь экран", "popup" to "Окно сверху"), Prefs.callMode(a)) {
+            Prefs.setCallMode(a, it)
+            rebuild()
+        }
+        c.addView(
+            Ui.text(a, "«Окно сверху» — небольшая панель с кнопками «Принять» и «Отклонить», пока телефон разблокирован. Голосовые команды работают и в ней. Если телефон заблокирован, звонок всё равно открывается на весь экран.", 13f, Theme.sub),
+            Ui.margins(Ui.lp(Ui.MATCH, Ui.WRAP), 0, Ui.dp(a, 8), 0, 0)
+        )
+        label(c, "РИНГТОН")
+        switchRow(c, "Нарастающий рингтон", "Мелодия звонка начинается тихо и постепенно становится громче", Prefs.K_RAMP)
+        label(c, "ВРЕМЯ НАРАСТАНИЯ ДО ПОЛНОЙ ГРОМКОСТИ")
+        val cur = Prefs.rampSeconds(a).toString()
+        choices(c, listOf("5" to "5 сек", "10" to "10 сек", "12" to "12 сек", "20" to "20 сек", "30" to "30 сек"), cur) {
+            Prefs.setRampSeconds(a, it.toInt())
+            rebuild()
+        }
+        c.addView(
+            Ui.text(a, "Используется мелодия звонка, выбранная в настройках телефона. Кнопка громкости заглушает звонок.", 13f, Theme.sub),
+            Ui.margins(Ui.lp(Ui.MATCH, Ui.WRAP), 0, Ui.dp(a, 8), 0, 0)
+        )
     }
 
     private fun buildWords(col: LinearLayout) {
@@ -282,31 +325,37 @@ class SettingsActivity : BaseActivity() {
         val a = this
         val c = card(
             col, "Записи разговоров",
-            "Android не даёт приложениям записывать голос собеседника напрямую. Если телефон не разрешает — пишется через микрофон на громкой связи."
+            "Android не даёт приложениям включать системную запись звонков. Поэтому кнопка «Запись» открывает диктофон самого телефона и включает громкую связь, чтобы записать и собеседника."
         )
-        switchRow(c, "Автозапись", "Начинать запись сразу, как только разговор начался", Prefs.K_AUTO_REC)
-        label(c, "АВТОЗАПИСЬ ИДЁТ НЕ БОЛЬШЕ")
-        val opts = listOf(0 to "Без ограничения", 60 to "1 мин", 300 to "5 мин", 600 to "10 мин", 1800 to "30 мин", 3600 to "1 час")
-        val flow = FlowLayout(a)
-        val cur = Prefs.recMaxSeconds(a)
-        for ((sec, name) in opts) {
-            val b = if (sec == cur) pill(name) {} else softPill(name) {
-                Prefs.setRecMaxSeconds(a, sec)
+        label(c, "СПОСОБ ЗАПИСИ")
+        choices(c, listOf("system" to "Диктофон телефона", "app" to "Запись в приложении"), Prefs.recMode(a)) {
+            Prefs.setRecMode(a, it)
+            rebuild()
+        }
+        if (Prefs.recMode(a) == "system") {
+            c.addView(
+                Ui.text(a, "Если на вашем телефоне есть собственная запись звонков (Google, Samsung, Xiaomi и др.), она доступна только в стандартном приложении «Телефон» производителя.", 13f, Theme.sub),
+                Ui.margins(Ui.lp(Ui.MATCH, Ui.WRAP), 0, Ui.dp(a, 8), 0, 0)
+            )
+        } else {
+            switchRow(c, "Автозапись", "Начинать запись сразу, как только разговор начался", Prefs.K_AUTO_REC)
+            label(c, "АВТОЗАПИСЬ ИДЁТ НЕ БОЛЬШЕ")
+            val opts = listOf("0" to "Без ограничения", "60" to "1 мин", "300" to "5 мин", "600" to "10 мин", "1800" to "30 мин", "3600" to "1 час")
+            choices(c, opts, Prefs.recMaxSeconds(a).toString()) {
+                Prefs.setRecMaxSeconds(a, it.toInt())
                 rebuild()
             }
-            flow.addView(b, Ui.margins(Ui.lp(Ui.WRAP, Ui.WRAP), 0, 0, Ui.dp(a, 8), Ui.dp(a, 8)))
-        }
-        c.addView(flow, Ui.lp(Ui.MATCH, Ui.WRAP))
-        val why = Prefs.recBroken(a)
-        if (why != null) {
-            c.addView(
-                Ui.text(a, "✗ Запись на этом телефоне не работает: $why", 14f, Theme.RED),
-                Ui.margins(Ui.lp(Ui.MATCH, Ui.WRAP), 0, Ui.dp(a, 6), 0, 0)
-            )
-            c.addView(softPill("Проверить запись заново") {
-                Prefs.setRecBroken(a, null)
-                rebuild()
-            }, Ui.margins(Ui.lp(Ui.WRAP, Ui.WRAP), 0, Ui.dp(a, 10), 0, 0))
+            val why = Prefs.recBroken(a)
+            if (why != null) {
+                c.addView(
+                    Ui.text(a, "✗ Запись на этом телефоне не работает: $why", 14f, Theme.RED),
+                    Ui.margins(Ui.lp(Ui.MATCH, Ui.WRAP), 0, Ui.dp(a, 6), 0, 0)
+                )
+                c.addView(softPill("Проверить запись заново") {
+                    Prefs.setRecBroken(a, null)
+                    rebuild()
+                }, Ui.margins(Ui.lp(Ui.WRAP, Ui.WRAP), 0, Ui.dp(a, 10), 0, 0))
+            }
         }
         c.addView(pill("Журнал записей") {
             startActivity(Intent(a, RecordingsActivity::class.java))
@@ -453,6 +502,68 @@ class SettingsActivity : BaseActivity() {
             row.addView(t, Ui.margins(Ui.lp(0, Ui.WRAP, 1f), 0, 0, Ui.dp(a, 8), 0))
         }
         c.addView(row, Ui.lp(Ui.MATCH, Ui.WRAP))
+
+        label(c, "ТЕМА ФОНА")
+        choices(c, Backgrounds.options.map { it.id to it.name }, Prefs.bgTheme(a)) { id ->
+            if (id == "custom") {
+                pickImage()
+            } else {
+                Prefs.setBgTheme(a, id)
+                rebuild()
+            }
+        }
+        if (Prefs.bgTheme(a) == "custom") {
+            c.addView(softPill(if (Backgrounds.hasCustom(a)) "Выбрать другую картинку" else "Выбрать картинку") { pickImage() },
+                Ui.margins(Ui.lp(Ui.WRAP, Ui.WRAP), 0, Ui.dp(a, 10), 0, 0))
+        }
+
+        label(c, "ПРОЗРАЧНОСТЬ ПАНЕЛЕЙ: " + Prefs.transparency(a) + "%")
+        val bar = SeekBar(a)
+        bar.max = 70
+        bar.progress = Prefs.transparency(a)
+        bar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar?, p: Int, fromUser: Boolean) {}
+            override fun onStartTrackingTouch(s: SeekBar?) {}
+            override fun onStopTrackingTouch(s: SeekBar?) {
+                Prefs.setTransparency(a, s?.progress ?: 0)
+                rebuild()
+            }
+        })
+        c.addView(bar, Ui.lp(Ui.MATCH, Ui.WRAP))
+        c.addView(
+            Ui.text(a, if (Theme.themed) "Карточки и панели становятся прозрачными, и сквозь них виден фон." else "Прозрачность заметна, когда выбрана тема фона.", 13f, Theme.sub),
+            Ui.margins(Ui.lp(Ui.MATCH, Ui.WRAP), 0, Ui.dp(a, 4), 0, 0)
+        )
+    }
+
+    private fun pickImage() {
+        try {
+            val i = Intent(Intent.ACTION_GET_CONTENT)
+            i.type = "image/*"
+            startActivityForResult(Intent.createChooser(i, "Выберите картинку для фона"), REQ_IMAGE)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Не удалось открыть выбор картинки", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != REQ_IMAGE || resultCode != RESULT_OK) return
+        val uri = data?.data ?: return
+        Toast.makeText(this, "Загружаю картинку…", Toast.LENGTH_SHORT).show()
+        Thread {
+            val ok = Backgrounds.saveCustom(this, uri)
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (ok) {
+                    Prefs.setBgTheme(this, "custom")
+                    rebuild()
+                } else {
+                    Toast.makeText(this, "Не удалось прочитать картинку", Toast.LENGTH_LONG).show()
+                }
+            }
+        }.start()
     }
 
     private fun buildHelp(col: LinearLayout) {

@@ -18,6 +18,9 @@
 
     <queries>
         <intent>
+            <action android:name="android.provider.MediaStore.RECORD_SOUND" />
+        </intent>
+        <intent>
             <action android:name="android.speech.RecognitionService" />
         </intent>
         <intent>
@@ -86,6 +89,18 @@
             android:screenOrientation="portrait"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode" />
 
+        <!-- Входящий звонок небольшим окном сверху (режим «всплывающее окно») -->
+        <activity
+            android:name=".InCallPopupActivity"
+            android:exported="false"
+            android:theme="@style/PopupTheme"
+            android:launchMode="singleTask"
+            android:taskAffinity=""
+            android:excludeFromRecents="true"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode" />
+
         <!-- Служба звонков: Android включает её только на время звонка -->
         <service
             android:name=".CallService"
@@ -93,6 +108,10 @@
             android:permission="android.permission.BIND_INCALL_SERVICE">
             <meta-data
                 android:name="android.telecom.IN_CALL_SERVICE_UI"
+                android:value="true" />
+            <!-- Рингтон проигрываем сами (нарастающая громкость) -->
+            <meta-data
+                android:name="android.telecom.IN_CALL_SERVICE_RINGING"
                 android:value="true" />
             <intent-filter>
                 <action android:name="android.telecom.InCallService" />

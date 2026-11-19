@@ -25,6 +25,7 @@ object Prefs {
     const val K_WAKE_MEDIA = "wake_media"
     const val K_CLEAR_VOICE = "clear_voice"
     const val K_REC_SPEAKER = "rec_speaker"
+    const val K_RAMP = "ramp_ring"
 
     fun voiceEnabled(c: Context) = flag(c, K_VOICE, true)
     fun speakerOnVoice(c: Context) = flag(c, K_SPEAKER_VOICE, true)
@@ -81,6 +82,7 @@ object Prefs {
         K_WAKE_MEDIA -> wakeDuringMedia(c)
         K_CLEAR_VOICE -> clearVoice(c)
         K_REC_SPEAKER -> recSpeaker(c)
+        K_RAMP -> rampRing(c)
         else -> false
     }
 
@@ -130,6 +132,32 @@ object Prefs {
     fun setAccent(c: Context, id: String) = p(c).edit().putString("accent", id).apply()
     fun setHue(c: Context, h: Int) = p(c).edit().putInt("hue", h).apply()
     fun setBg(c: Context, m: String) = p(c).edit().putString("bg", m).apply()
+
+    /** Как показывать входящий: "full" — на весь экран, "popup" — окно сверху (на разблокированном телефоне). */
+    fun callMode(c: Context): String = p(c).getString("call_mode", "full") ?: "full"
+    fun setCallMode(c: Context, m: String) = p(c).edit().putString("call_mode", m).apply()
+
+    /** Нарастающий рингтон: громкость плавно растёт от тихой до полной. */
+    fun rampRing(c: Context): Boolean = p(c).getBoolean("ramp_ring", true)
+    fun setRampRing(c: Context, v: Boolean) = p(c).edit().putBoolean("ramp_ring", v).apply()
+    fun rampSeconds(c: Context): Int = p(c).getInt("ramp_sec", 12)
+    fun setRampSeconds(c: Context, s: Int) = p(c).edit().putInt("ramp_sec", s).apply()
+
+    /** Способ записи: "system" — диктофон самого телефона, "app" — запись внутри приложения. */
+    fun recMode(c: Context): String = p(c).getString("rec_mode", "system") ?: "system"
+    fun setRecMode(c: Context, m: String) = p(c).edit().putString("rec_mode", m).apply()
+
+    /** Фоновая тема: none, newyear, winter, summer, spring, autumn, custom. */
+    fun bgTheme(c: Context): String = p(c).getString("bg_theme", "none") ?: "none"
+    fun setBgTheme(c: Context, id: String) = p(c).edit().putString("bg_theme", id).apply()
+
+    /** Прозрачность панелей приложения в процентах (0 — непрозрачные, максимум 70). */
+    fun transparency(c: Context): Int = p(c).getInt("transparency", 0).coerceIn(0, 70)
+    fun setTransparency(c: Context, v: Int) = p(c).edit().putInt("transparency", v.coerceIn(0, 70)).apply()
+
+    /** Номер версии собственной картинки фона — нужен, чтобы приложение заметило замену. */
+    fun customBgVersion(c: Context): Long = p(c).getLong("custom_bg_ver", 0L)
+    fun setCustomBgVersion(c: Context, v: Long) = p(c).edit().putLong("custom_bg_ver", v).apply()
 
     /** Фон экрана звонка: "dark" (тёмный с оттенком темы), "black", "bright" (яркий цвет темы). */
     fun callBg(c: Context): String = p(c).getString("call_bg", "dark") ?: "dark"

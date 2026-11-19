@@ -14,6 +14,7 @@ import android.telecom.Call
 /** Уведомления о звонках: входящий (с кнопками), идущий разговор, пропущенный. */
 object CallNotifier {
     private const val CH_INCOMING = "calls_incoming"
+    private const val CH_INCOMING_QUIET = "calls_incoming_popup"
     private const val CH_ONGOING = "calls_ongoing"
     private const val CH_MISSED = "calls_missed"
     private const val ID_CALL = 101
@@ -26,6 +27,14 @@ object CallNotifier {
         incoming.setShowBadge(false)
         incoming.lockscreenVisibility = Notification.VISIBILITY_PUBLIC
         nm.createNotificationChannel(incoming)
+
+        // В режиме «окно сверху» уведомление не всплывает (всплывает наше окно)
+        val quiet = NotificationChannel(CH_INCOMING_QUIET, "Входящие (окно сверху)", NotificationManager.IMPORTANCE_LOW)
+        quiet.setSound(null, null)
+        quiet.enableVibration(false)
+        quiet.setShowBadge(false)
+        quiet.lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+        nm.createNotificationChannel(quiet)
 
         val ongoing = NotificationChannel(CH_ONGOING, "Идёт разговор", NotificationManager.IMPORTANCE_LOW)
         ongoing.setShowBadge(false)
@@ -61,7 +70,12 @@ object CallNotifier {
             val title = Calls.title(info)
             val ringing = call.state == Call.STATE_RINGING
 
-            val b = if (ringing) Notification.Builder(ctx, CH_INCOMING) else Notification.Builder(ctx, CH_ONGOING)
+            val popup = ringing && Calls.popupNow(ctx)
+            val b = when {
+                popup -> Notification.Builder(ctx, CH_INCOMING_QUIET)
+                ringing -> Notification.Builder(ctx, CH_INCOMING)
+                else -> Notification.Builder(ctx, CH_ONGOING)
+            }
             b.setSmallIcon(R.drawable.ic_call)
             b.setContentTitle(title)
             b.setCategory(Notification.CATEGORY_CALL)
@@ -70,7 +84,7 @@ object CallNotifier {
             b.setVisibility(Notification.VISIBILITY_PUBLIC)
             if (ringing) {
                 b.setContentText("Входящий вызов")
-                b.setFullScreenIntent(openUi(ctx), true)
+                if (!popup) b.setFullScreenIntent(openUi(ctx), true)
                 b.addAction(act(ctx, R.drawable.ic_call_end, "Отклонить", action(ctx, CallActionReceiver.ACTION_DECLINE, 1)))
                 b.addAction(act(ctx, R.drawable.ic_call, "Принять", action(ctx, CallActionReceiver.ACTION_ANSWER, 2)))
             } else {

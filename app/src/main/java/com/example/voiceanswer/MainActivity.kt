@@ -108,7 +108,9 @@ class MainActivity : BaseActivity() {
     private lateinit var navTextRecents: TextView
     private lateinit var navTextContacts: TextView
     private lateinit var dialPanel: LinearLayout
-    private lateinit var dialNumber: TextView
+    private lateinit var dialField: EditText
+    private var dialSyncing = false
+    private var maxSuggest = 3
     private lateinit var dialHint: TextView
     private lateinit var contactsEmpty: TextView
 
@@ -235,7 +237,7 @@ class MainActivity : BaseActivity() {
     private fun buildUi() {
         val a = this
         val root = FrameLayout(a)
-        root.setBackgroundColor(Theme.bg)
+        if (!Theme.themed) root.setBackgroundColor(Theme.bg)
 
         val col = LinearLayout(a)
         col.orientation = LinearLayout.VERTICAL
@@ -440,7 +442,7 @@ class MainActivity : BaseActivity() {
         wrap.addView(line, Ui.lp(Ui.MATCH, 1))
         val nav = LinearLayout(a)
         nav.orientation = LinearLayout.HORIZONTAL
-        nav.setBackgroundColor(Theme.bg)
+        nav.setBackgroundColor(Theme.panel)
         nav.addView(navItem(R.drawable.ic_history, "Недавние", { showPage(0) }) { c, t ->
             navIconRecents = c
             navTextRecents = t
@@ -889,11 +891,12 @@ class MainActivity : BaseActivity() {
         val a = this
         // размер кнопок подгоняем под высоту экрана, чтобы кнопка вызова всегда помещалась
         val heightDp = resources.displayMetrics.heightPixels / resources.displayMetrics.density
-        val keySize = ((heightDp - 80f - 62f - 66f - 26f - 100f - 58f) / 5f).toInt().coerceIn(52, 74)
+        val keySize = ((heightDp - 80f - 62f - 66f - 26f - 100f - 58f) / 5f).toInt().coerceIn(52, 80)
+        maxSuggest = if (heightDp >= 760f) 5 else 3
         val p = LinearLayout(a)
         p.orientation = LinearLayout.VERTICAL
         p.gravity = Gravity.CENTER_HORIZONTAL
-        p.setBackgroundColor(Theme.bg)
+        p.background = Theme.windowDrawable(a)
         p.isClickable = true // не пропускать нажатия на списки под панелью
 
         val top = LinearLayout(a)
@@ -901,11 +904,47 @@ class MainActivity : BaseActivity() {
         top.addView(iconButton(R.drawable.ic_close) { closeDial() })
         p.addView(top, Ui.margins(Ui.lp(Ui.MATCH, Ui.WRAP), Ui.dp(a, 8), Ui.dp(a, 8), 0, 0))
 
-        dialNumber = Ui.light(a, "", 34f, Theme.text)
-        dialNumber.gravity = Gravity.CENTER
-        dialNumber.maxLines = 1
-        dialNumber.ellipsize = TextUtils.TruncateAt.START
-        p.addView(dialNumber, Ui.margins(Ui.lp(Ui.MATCH, Ui.dp(a, 56)), Ui.dp(a, 16), Ui.dp(a, 10), Ui.dp(a, 16), 0))
+        // Окно номера: сюда можно вставить номер из буфера, скопировать его или набрать цифрами
+        val field = LinearLayout(a)
+        field.orientation = LinearLayout.HORIZONTAL
+        field.gravity = Gravity.CENTER_VERTICAL
+        field.background = Ui.rounded(Theme.card, Ui.dpf(a, 22f))
+        field.setPadding(Ui.dp(a, 16), 0, Ui.dp(a, 6), 0)
+        dialField = EditText(a)
+        dialField.setTextColor(Theme.text)
+        dialField.setHintTextColor(Theme.sub)
+        dialField.hint = "Введите или вставьте номер"
+        dialField.textSize = 24f
+        dialField.typeface = android.graphics.Typeface.create("sans-serif-light", android.graphics.Typeface.NORMAL)
+        dialField.isSingleLine = true
+        dialField.inputType = android.text.InputType.TYPE_CLASS_PHONE
+        dialField.showSoftInputOnFocus = false // цифры набираются кнопками ниже, вставка — долгим нажатием или кнопкой
+        dialField.background = null
+        dialField.setPadding(0, 0, 0, 0)
+        dialField.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(e: Editable?) {
+                if (dialSyncing) return
+                val raw = e?.toString() ?: ""
+                val clean = cleanNumber(raw)
+                dialed.setLength(0)
+                dialed.append(clean)
+                if (clean != raw) {
+                    dialSyncing = true
+                    dialField.setText(clean)
+                    dialField.setSelection(clean.length)
+                    dialSyncing = false
+                }
+                updateDial()
+            }
+        })
+        field.addView(dialField, Ui.lp(0, Ui.dp(a, 56), 1f))
+        field.addView(iconButton(R.drawable.ic_paste) { pasteNumber() }, Ui.lp(Ui.dp(a, 46), Ui.dp(a, 46)))
+        field.addView(iconButton(R.drawable.ic_content_copy) {
+            if (dialed.isEmpty()) Toast.makeText(a, "Сначала введите номер", Toast.LENGTH_SHORT).show() else copy(dialed.toString())
+        }, Ui.lp(Ui.dp(a, 46), Ui.dp(a, 46)))
+        p.addView(field, Ui.margins(Ui.lp(Ui.MATCH, Ui.WRAP), Ui.dp(a, 16), Ui.dp(a, 6), Ui.dp(a, 16), 0))
         dialHint = Ui.text(a, "", 16f, Theme.sub)
         dialHint.gravity = Gravity.CENTER
         p.addView(dialHint, Ui.lp(Ui.MATCH, Ui.dp(a, 26)))
@@ -929,7 +968,17 @@ class MainActivity : BaseActivity() {
         val bottom = LinearLayout(a)
         bottom.orientation = LinearLayout.HORIZONTAL
         bottom.gravity = Gravity.CENTER
-        bottom.addView(View(a), Ui.lp(Ui.dp(a, keySize), Ui.dp(a, keySize)))
+        val addContact = Ui.roundButton(a, keySize, ColorDrawable(Color.TRANSPARENT), R.drawable.ic_person_add, Theme.sub, 26)
+        addContact.setOnClickListener {
+            if (dialed.isEmpty()) {
+                Toast.makeText(a, "Сначала введите номер", Toast.LENGTH_SHORT).show()
+            } else {
+                val i = Intent(a, ContactEditActivity::class.java)
+                i.putExtra(ContactEditActivity.EXTRA_NUMBER, dialed.toString())
+                startActivity(i)
+            }
+        }
+        bottom.addView(addContact)
         val call = Ui.roundButton(a, keySize, Ui.oval(Theme.GREEN), R.drawable.ic_call, Color.WHITE, keySize * 2 / 5 + 3)
         call.setOnClickListener {
             val n = dialed.toString()
@@ -959,7 +1008,12 @@ class MainActivity : BaseActivity() {
 
     private fun updateDial() {
         val a = this
-        dialNumber.text = dialed.toString()
+        if (dialField.text.toString() != dialed.toString()) {
+            dialSyncing = true
+            dialField.setText(dialed.toString())
+            dialField.setSelection(dialField.text.length)
+            dialSyncing = false
+        }
         val digits = dialed.filter { it.isDigit() }.toString()
         suggestBox.removeAllViews()
         if (digits.length < 2) {
@@ -981,7 +1035,7 @@ class MainActivity : BaseActivity() {
         }
         for (c in contacts) for (n in c.numbers) consider(c.name, n.number, if (n.label.isNotBlank()) n.label else "Контакт")
         for (e in log) if (e.number.isNotBlank()) consider(e.title, e.number, "Из журнала")
-        val top = found.values.sortedBy { it.rank }.take(3)
+        val top = found.values.sortedBy { it.rank }.take(maxSuggest)
         dialHint.text = if (digits.length >= 3 && top.isEmpty()) "Нового номера нет в контактах" else if (top.isNotEmpty()) "Похожие номера" else ""
         for (sg in top) {
             val row = LinearLayout(a)
@@ -1007,6 +1061,30 @@ class MainActivity : BaseActivity() {
             }
             suggestBox.addView(row, Ui.margins(Ui.lp(Ui.MATCH, Ui.dp(a, 40)), 0, 0, 0, Ui.dp(a, 4)))
         }
+    }
+
+    /** Оставляет в номере только цифры, «+», «*» и «#» (убирает пробелы, скобки и дефисы). */
+    private fun cleanNumber(raw: String): String {
+        val sb = StringBuilder()
+        for (ch in raw) if (ch.isDigit() || ch == '+' || ch == '*' || ch == '#') sb.append(ch)
+        return sb.toString()
+    }
+
+    private fun pasteNumber() {
+        val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val text = try {
+            cm.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(this)?.toString() ?: ""
+        } catch (e: Exception) {
+            ""
+        }
+        val clean = cleanNumber(text)
+        if (clean.isEmpty()) {
+            Toast.makeText(this, "В буфере обмена нет номера телефона", Toast.LENGTH_SHORT).show()
+            return
+        }
+        dialed.setLength(0)
+        dialed.append(clean)
+        updateDial()
     }
 
     private fun openDial(prefill: String) {

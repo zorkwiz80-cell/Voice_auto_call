@@ -212,6 +212,25 @@ object Recorder {
         }
     }
 
+    /**
+     * Открывает диктофон самого телефона. Приложениям Android не даёт включать системную запись
+     * разговора, поэтому голос собеседника пишется микрофоном — для этого включаем громкую связь.
+     * Возвращает false, если на телефоне нет диктофона.
+     */
+    fun openSystemRecorder(ctx: Context): Boolean {
+        val appCtx = ctx.applicationContext
+        return try {
+            val i = android.content.Intent(MediaStore.Audio.Media.RECORD_SOUND_ACTION)
+            i.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            ctx.startActivity(i)
+            if (Calls.headsetKind(appCtx) == Calls.Headset.NONE) Calls.setSpeaker(true, appCtx)
+            toast(appCtx, "Открыт диктофон телефона. Нажмите там запись; громкая связь включена, чтобы записать собеседника. Вернуться к звонку — через уведомление.")
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     /** Возвращает null, если запись началась, иначе — текст ошибки. */
     fun start(ctx: Context, who: String, number: String, auto: Boolean): String? {
         if (rec != null) return null

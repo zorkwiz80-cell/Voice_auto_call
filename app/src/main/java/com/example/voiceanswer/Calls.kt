@@ -3,6 +3,7 @@
 package com.example.voiceanswer
 
 import android.Manifest
+import android.app.KeyguardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -12,6 +13,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.provider.ContactsContract
 import android.telecom.Call
 import android.telecom.CallAudioState
@@ -111,7 +113,10 @@ object Calls {
         override fun onStateChanged(call: Call, state: Int) {
             val info = infos[call] ?: return
             if (state == Call.STATE_ACTIVE) onActive(call, info)
-            if (state != Call.STATE_RINGING) stopAnnounce()
+            if (state != Call.STATE_RINGING) {
+                stopAnnounce()
+                if (calls.none { it.state == Call.STATE_RINGING }) Ringer.stop()
+            }
             refreshInfo(info)
             app?.let { CallNotifier.update(it) }
             notifyChanged()
@@ -156,7 +161,10 @@ object Calls {
             }
             if (cause == DisconnectCause.MISSED) CallNotifier.missed(ctx, title(info), info.number)
         }
-        if (calls.none { it.state == Call.STATE_RINGING }) stopAnnounce()
+        if (calls.none { it.state == Call.STATE_RINGING }) {
+            stopAnnounce()
+            Ringer.stop()
+        }
         if (calls.isEmpty()) Recorder.stop(ctx)
         CallNotifier.update(ctx)
         notifyChanged()
@@ -171,6 +179,7 @@ object Calls {
         service = null
         audioState = null
         stopAnnounce()
+        Ringer.stop()
     }
 
     private fun refreshInfo(info: Info) {
@@ -220,13 +229,32 @@ object Calls {
         }
     }
 
+    /** Показывать входящий небольшим окном сверху: выбран такой режим, телефон разблокирован, звонок один. */
+    fun popupNow(ctx: Context): Boolean {
+        if (Prefs.callMode(ctx) != "popup" || calls.size > 1) return false
+        return try {
+            val km = ctx.getSystemService(KeyguardManager::class.java)
+            val pm = ctx.getSystemService(PowerManager::class.java)
+            !km.isKeyguardLocked && pm.isInteractive
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     fun launchUi(ctx: Context) {
         try {
-            val i = Intent(ctx, InCallActivity::class.java)
+            val cls = if (ringing() != null && popupNow(ctx)) InCallPopupActivity::class.java else InCallActivity::class.java
+            val i = Intent(ctx, cls)
             i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             ctx.startActivity(i)
         } catch (_: Exception) {
-            // Если экран открыть не вышло, останется уведомление с полноэкранным показом
+            // Окно сверху не открылось — пробуем обычный экран звонка
+            try {
+                val i = Intent(ctx, InCallActivity::class.java)
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                ctx.startActivity(i)
+            } catch (_: Exception) {
+            }
         }
     }
 
@@ -234,7 +262,8 @@ object Calls {
 
     private fun onRinging(ctx: Context, info: Info) {
         info.wasRinging = true
-        if (Prefs.quietRinger(ctx)) setRingVolumeHalf(ctx)
+        // Звонок проигрываем сами (нарастающая громкость); при втором звонке во время разговора — без мелодии
+        if (calls.size <= 1) Ringer.start(ctx, !info.name.isNullOrBlank())
         if (Prefs.announce(ctx)) {
             announcing = true
             val a = announcer ?: Announcer(ctx).also { announcer = it }
@@ -311,7 +340,10 @@ object Calls {
         }
     }
 
-    fun silence(ctx: Context) = silenceRinger(ctx)
+    fun silence(ctx: Context) {
+        Ringer.stop()
+        silenceRinger(ctx)
+    }
 
     // ------------------------------------------------------------------ ответ, отбой
 
@@ -319,6 +351,7 @@ object Calls {
         val call = ringing() ?: return
         val info = infos[call] ?: return
         stopAnnounce()
+        Ringer.stop()
         info.answeredHere = true
         info.answeredByVoice = byVoice
 
@@ -341,6 +374,7 @@ object Calls {
     fun reject() {
         val call = ringing() ?: return
         stopAnnounce()
+        Ringer.stop()
         try {
             call.reject(false, null)
         } catch (_: Exception) {
@@ -361,7 +395,7 @@ object Calls {
 
     private fun autoRecord(call: Call, info: Info) {
         val ctx = app ?: return
-        if (info.autoRecTried || !Prefs.autoRec(ctx) || Prefs.recBroken(ctx) != null) return
+        if (info.autoRecTried || Prefs.recMode(ctx) != "app" || !Prefs.autoRec(ctx) || Prefs.recBroken(ctx) != null) return
         info.autoRecTried = true
         handler.postDelayed({
             if (infos.containsKey(call) && call.state == Call.STATE_ACTIVE && !Recorder.active) {
