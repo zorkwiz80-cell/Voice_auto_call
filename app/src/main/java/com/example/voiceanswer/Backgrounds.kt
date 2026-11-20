@@ -7,6 +7,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.DashPathEffect
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
@@ -154,7 +155,7 @@ class SeasonDrawable(private val kind: String) : Drawable() {
             "summer" -> { top = 0xFF1E78D2.toInt(); bottom = 0xFFF2C25B.toInt() }
             "spring" -> { top = 0xFF2F6B4F.toInt(); bottom = 0xFFD98BB0.toInt() }
             "xbox" -> { top = 0xFF030603.toInt(); bottom = 0xFF0A4A1A.toInt() }
-            "dragon" -> { top = 0xFF080203.toInt(); bottom = 0xFF6E0A0C.toInt() }
+            "dragon" -> { top = 0xFF0B0B0C.toInt(); bottom = 0xFF050506.toInt() }
             else -> { top = 0xFF4A2410.toInt(); bottom = 0xFFD9822B.toInt() }
         }
         paint.shader = LinearGradient(0f, 0f, 0f, h, top, bottom, Shader.TileMode.CLAMP)
@@ -225,37 +226,150 @@ class SeasonDrawable(private val kind: String) : Drawable() {
         paint.style = Paint.Style.FILL
     }
 
-    /** Red Dragon: чёрно-красный фон, драконья чешуя, жар снизу и искры. */
-    private fun dragon(canvas: Canvas, w: Float, h: Float) {
-        paint.style = Paint.Style.FILL
-        paint.shader = RadialGradient(w * 0.5f, h * 1.05f, h * 0.7f, 0xAAFF5A1F.toInt(), 0x00FF5A1F, Shader.TileMode.CLAMP)
-        canvas.drawRect(0f, 0f, w, h, paint)
-        paint.shader = null
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = w * 0.004f
-        paint.color = 0x40FF2A2A
-        val r = w * 0.09f
-        var row = 0
-        var y = 0f
-        while (y < h + r) {
-            var x = if (row % 2 == 0) 0f else r
-            while (x < w + 2 * r) {
-                rect.set(x - r, y - r, x + r, y + r)
-                canvas.drawArc(rect, 0f, 180f, false, paint)
-                x += 2 * r
+    /** Разбор простого SVG-пути (M, L, Q, C, l, Z) в [Path] — так форму дракона удобно хранить строкой. */
+    private fun svg(d: String): Path {
+        val out = Path()
+        val tokens = Regex("[MLQClZz]|-?\\d*\\.?\\d+").findAll(d).map { it.value }.toList()
+        var i = 0
+        var cmd = 'M'
+        var cx = 0f
+        var cy = 0f
+        fun num(): Float = tokens[i++].toFloat()
+        while (i < tokens.size) {
+            val t = tokens[i]
+            if (t[0].isLetter()) {
+                cmd = t[0]
+                i++
+                if (cmd == 'Z' || cmd == 'z') out.close()
+                continue
             }
-            y += r * 0.9f
-            row++
+            when (cmd) {
+                'M' -> { cx = num(); cy = num(); out.moveTo(cx, cy); cmd = 'L' }
+                'L' -> { cx = num(); cy = num(); out.lineTo(cx, cy) }
+                'l' -> { cx += num(); cy += num(); out.lineTo(cx, cy) }
+                'Q' -> { val x1 = num(); val y1 = num(); cx = num(); cy = num(); out.quadTo(x1, y1, cx, cy) }
+                'C' -> {
+                    val x1 = num(); val y1 = num(); val x2 = num(); val y2 = num()
+                    cx = num(); cy = num()
+                    out.cubicTo(x1, y1, x2, y2, cx, cy)
+                }
+                else -> i++
+            }
         }
+        return out
+    }
+
+    private fun fill(canvas: Canvas, d: String, color: Int) {
         paint.style = Paint.Style.FILL
+        paint.color = color
+        canvas.drawPath(svg(d), paint)
+    }
+
+    private fun stroke(canvas: Canvas, d: String, width: Float, color: Int, dash: Boolean = false) {
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = width
+        paint.strokeCap = Paint.Cap.ROUND
+        paint.strokeJoin = Paint.Join.ROUND
+        paint.color = color
+        if (dash) paint.pathEffect = DashPathEffect(floatArrayOf(0.7f, 2.1f), 0f)
+        canvas.drawPath(svg(d), paint)
+        paint.pathEffect = null
+        paint.strokeCap = Paint.Cap.BUTT
+    }
+
+    /** Red Dragon: чёрная фактурная кожа, глянцевое красное кольцо и красный крылатый дракон внутри. */
+    private fun dragon(canvas: Canvas, w: Float, h: Float) {
+        // Фактура: мелкие светлые и тёмные точки, как тиснёная кожа
         val rnd = Random(5)
-        for (i in 0 until 45) {
+        paint.style = Paint.Style.FILL
+        val dots = (w * h / 900f).toInt().coerceIn(200, 2500)
+        for (i in 0 until dots) {
             val x = rnd.nextFloat() * w
-            val y2 = h * (0.3f + rnd.nextFloat() * 0.7f)
-            val s2 = w * (0.003f + rnd.nextFloat() * 0.006f)
-            paint.color = Color.argb(80 + rnd.nextInt(150), 255, 120 + rnd.nextInt(100), 30)
-            canvas.drawCircle(x, y2, s2, paint)
+            val y = rnd.nextFloat() * h
+            val r = w * (0.002f + rnd.nextFloat() * 0.003f)
+            paint.color = if (rnd.nextBoolean()) Color.argb(10 + rnd.nextInt(14), 255, 255, 255) else Color.argb(40 + rnd.nextInt(40), 0, 0, 0)
+            canvas.drawCircle(x, y, r, paint)
         }
+
+        val size = minOf(w * 0.96f, h * 0.7f)
+        val cx = w / 2f
+        val cy = h * 0.42f
+        canvas.save()
+        canvas.translate(cx - size / 2f, cy - size / 2f)
+        canvas.scale(size / 100f, size / 100f)
+
+        // Красное свечение за эмблемой
+        paint.style = Paint.Style.FILL
+        paint.shader = RadialGradient(50f, 50f, 52f, 0x47FF2A1A, 0x00FF2A1A, Shader.TileMode.CLAMP)
+        canvas.drawCircle(50f, 50f, 52f, paint)
+        paint.shader = null
+
+        val ringShader = LinearGradient(8f, 8f, 92f, 92f, intArrayOf(0xFFFF5A45.toInt(), 0xFFC8100C.toInt(), 0xFF6A0606.toInt()), floatArrayOf(0f, 0.5f, 1f), Shader.TileMode.CLAMP)
+        val redShader = LinearGradient(20f, 10f, 80f, 90f, intArrayOf(0xFFFF4B3A.toInt(), 0xFFD4140F.toInt(), 0xFF6E0707.toInt()), floatArrayOf(0f, 0.55f, 1f), Shader.TileMode.CLAMP)
+
+        // Два кольца
+        paint.style = Paint.Style.STROKE
+        paint.shader = ringShader
+        paint.strokeWidth = 3.2f
+        canvas.drawCircle(50f, 50f, 46f, paint)
+        paint.strokeWidth = 1.1f
+        canvas.drawCircle(50f, 50f, 42f, paint)
+        paint.shader = null
+
+        paint.shader = redShader
+        // Крыло
+        paint.style = Paint.Style.FILL
+        canvas.drawPath(svg("M51,50 Q40,28 31,15 Q28,32 22,58 Q31,46 33,56 Q37,48 40,61 Q44,51 48,63 Z"), paint)
+        paint.shader = null
+        stroke(canvas, "M51,50 L28,34 M51,50 L26,46 M51,50 L33,56", 0.6f, 0xFF7A0808.toInt())
+
+        paint.shader = redShader
+        // Задняя лапа, тело, хвост
+        for ((d, wd) in listOf(
+            "M56,70 L66,74 L70,82" to 4.2f,
+            "M70,33 C58,29 50,36 52,48 C54,58 62,60 58,70" to 8f,
+            "M58,70 C55,80 38,84 31,74 C26,66 36,60 43,66" to 5.6f
+        )) {
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = wd
+            paint.strokeCap = Paint.Cap.ROUND
+            paint.strokeJoin = Paint.Join.ROUND
+            canvas.drawPath(svg(d), paint)
+        }
+        paint.strokeCap = Paint.Cap.BUTT
+        paint.style = Paint.Style.FILL
+        canvas.drawPath(svg("M43,66 L40.5,62 L47,63.5 Z"), paint)
+        paint.shader = null
+
+        // Чешуйчатые полосы на теле и хвосте
+        stroke(canvas, "M70,33 C58,29 50,36 52,48 C54,58 62,60 58,70", 6f, 0xBF6E0707.toInt(), true)
+        stroke(canvas, "M58,70 C55,80 38,84 31,74 C26,66 36,60 43,66", 4.4f, 0xBF6E0707.toInt(), true)
+        // Блик на шее
+        stroke(canvas, "M69,30.5 C58,26.5 48.5,34 50,48 C52,57 60,59 56,69", 1f, 0x8CFF9A85.toInt())
+
+        paint.shader = redShader
+        paint.style = Paint.Style.FILL
+        rect.set(49.5f, 51.5f, 66.5f, 72.5f)
+        canvas.drawOval(rect, paint)
+        // Передняя лапа
+        stroke(canvas, "M62,60 L72,63 L76,70", 3.6f, 0xFFD4140F.toInt())
+        paint.shader = null
+        fill(canvas, "M76,70 l2.5,3.5 l-3.5,-1.2 z M76,70 l-0.5,4 l-2,-3 z M70,82 l3,3 l-4,-0.5 z", 0xFFD4140F.toInt())
+
+        // Рога и голова
+        paint.shader = redShader
+        paint.style = Paint.Style.FILL
+        canvas.drawPath(svg("M67,29 Q58,24 54,13 Q63,19 70,27 Z M70,28 Q66,20 65,11 Q71,18 73,27 Z"), paint)
+        canvas.drawPath(svg("M64,31 L70,25 L78,26 L86,31 L84,35 L77,34.5 L80,40 L74,37 L69,39 Z"), paint)
+        paint.shader = null
+        fill(canvas, "M78,34.4 L84,34.2 L77,35.6 Z", 0xFF0A0A0B.toInt())
+        fill(canvas, "M79.5,34.2 l0.9,1.7 l0.9,-1.7 z M82.3,34.1 l0.8,1.5 l0.8,-1.6 z", 0xFFF5D9D2.toInt())
+        paint.color = 0xFFFFD1C8.toInt()
+        canvas.drawCircle(73.2f, 29.5f, 0.9f, paint)
+        // Шипы на спине
+        fill(canvas, "M55,38 l-3.2,-2 l1,3.4 z M52,46 l-3.5,-0.5 l2,2.6 z M55,56 l-3.2,0.8 l2.5,2 z", 0xFFA30D0B.toInt())
+
+        canvas.restore()
     }
 
     private fun snow(canvas: Canvas, w: Float, h: Float, count: Int) {
