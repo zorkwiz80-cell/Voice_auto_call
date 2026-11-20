@@ -20,7 +20,8 @@ class LogEntry(
     val name: String?,
     val type: Int,
     val date: Long,
-    val label: String
+    val label: String,
+    val duration: Long = 0L
 ) {
     val missed: Boolean get() = type == CallLog.Calls.MISSED_TYPE || type == CallLog.Calls.REJECTED_TYPE
     val outgoing: Boolean get() = type == CallLog.Calls.OUTGOING_TYPE
@@ -60,6 +61,7 @@ object Repo {
                 val iNumType = cur.getColumnIndex(CallLog.Calls.CACHED_NUMBER_TYPE)
                 val iNumLabel = cur.getColumnIndex(CallLog.Calls.CACHED_NUMBER_LABEL)
                 val iGeo = cur.getColumnIndex("geocoded_location")
+                val iDur = cur.getColumnIndex(CallLog.Calls.DURATION)
                 while (cur.moveToNext() && out.size < limit) {
                     val number = if (iNum >= 0) cur.getString(iNum).orEmpty() else ""
                     var label = ""
@@ -80,7 +82,8 @@ object Repo {
                             if (iName >= 0) cur.getString(iName) else null,
                             if (iType >= 0) cur.getInt(iType) else 0,
                             if (iDate >= 0) cur.getLong(iDate) else 0L,
-                            label
+                            label,
+                            if (iDur >= 0) cur.getLong(iDur) else 0L
                         )
                     )
                 }

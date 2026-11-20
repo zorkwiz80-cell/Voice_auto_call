@@ -11,6 +11,7 @@ import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PixelFormat
+import android.graphics.RadialGradient
 import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.ColorFilter
@@ -33,6 +34,8 @@ object Backgrounds {
         Opt("summer", "Летняя"),
         Opt("spring", "Весенняя"),
         Opt("autumn", "Осенняя"),
+        Opt("xbox", "X-Box"),
+        Opt("dragon", "Red Dragon"),
         Opt("custom", "Своя картинка")
     )
 
@@ -62,7 +65,7 @@ object Backgrounds {
 
     /** Рисунок фона для темы; null — без темы (или своя картинка ещё не выбрана). */
     fun drawable(c: Context, id: String): Drawable? = when (id) {
-        "newyear", "winter", "summer", "spring", "autumn" -> SeasonDrawable(id)
+        "newyear", "winter", "summer", "spring", "autumn", "xbox", "dragon" -> SeasonDrawable(id)
         "custom" -> loadCustom(c)?.let { CustomDrawable(it) }
         else -> null
     }
@@ -150,6 +153,8 @@ class SeasonDrawable(private val kind: String) : Drawable() {
             "winter" -> { top = 0xFF0E2A47.toInt(); bottom = 0xFF4F86B8.toInt() }
             "summer" -> { top = 0xFF1E78D2.toInt(); bottom = 0xFFF2C25B.toInt() }
             "spring" -> { top = 0xFF2F6B4F.toInt(); bottom = 0xFFD98BB0.toInt() }
+            "xbox" -> { top = 0xFF030603.toInt(); bottom = 0xFF0A4A1A.toInt() }
+            "dragon" -> { top = 0xFF080203.toInt(); bottom = 0xFF6E0A0C.toInt() }
             else -> { top = 0xFF4A2410.toInt(); bottom = 0xFFD9822B.toInt() }
         }
         paint.shader = LinearGradient(0f, 0f, 0f, h, top, bottom, Shader.TileMode.CLAMP)
@@ -176,10 +181,81 @@ class SeasonDrawable(private val kind: String) : Drawable() {
                 cloud(canvas, w * 0.55f, h * 0.34f, w * 0.09f)
                 waves(canvas, w, h)
             }
+            "xbox" -> xbox(canvas, w, h)
+            "dragon" -> dragon(canvas, w, h)
             "spring" -> leaves(canvas, w, h, 40, intArrayOf(0xFFFFFFFF.toInt(), 0xFFFFC1D9.toInt(), 0xFFFF8FB8.toInt()), 0.016f)
             else -> leaves(canvas, w, h, 34, intArrayOf(0xFFFF7A1A.toInt(), 0xFFD7263D.toInt(), 0xFFFFC53D.toInt(), 0xFF8B4513.toInt()), 0.03f)
         }
         canvas.restore()
+    }
+
+    /** X-Box: чёрный фон, зелёное свечение и сетка из шестиугольников (без логотипов). */
+    private fun xbox(canvas: Canvas, w: Float, h: Float) {
+        val cx = w * 0.78f
+        val cy = h * 0.2f
+        paint.style = Paint.Style.FILL
+        paint.shader = RadialGradient(cx, cy, w * 0.75f, 0x9937E04F.toInt(), 0x0037E04F, Shader.TileMode.CLAMP)
+        canvas.drawRect(0f, 0f, w, h, paint)
+        paint.shader = null
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = w * 0.003f
+        paint.color = 0x2E6BFF7C
+        val r = w * 0.11f
+        val dx = r * 1.732f
+        val dy = r * 1.5f
+        var row = 0
+        var y = -r
+        while (y < h + r) {
+            var x = if (row % 2 == 0) 0f else dx / 2f
+            while (x < w + dx) {
+                path.reset()
+                for (k in 0 until 6) {
+                    val ang = Math.toRadians((60 * k - 30).toDouble())
+                    val px = x + (r * Math.cos(ang)).toFloat()
+                    val py = y + (r * Math.sin(ang)).toFloat()
+                    if (k == 0) path.moveTo(px, py) else path.lineTo(px, py)
+                }
+                path.close()
+                canvas.drawPath(path, paint)
+                x += dx
+            }
+            y += dy
+            row++
+        }
+        paint.style = Paint.Style.FILL
+    }
+
+    /** Red Dragon: чёрно-красный фон, драконья чешуя, жар снизу и искры. */
+    private fun dragon(canvas: Canvas, w: Float, h: Float) {
+        paint.style = Paint.Style.FILL
+        paint.shader = RadialGradient(w * 0.5f, h * 1.05f, h * 0.7f, 0xAAFF5A1F.toInt(), 0x00FF5A1F, Shader.TileMode.CLAMP)
+        canvas.drawRect(0f, 0f, w, h, paint)
+        paint.shader = null
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = w * 0.004f
+        paint.color = 0x40FF2A2A
+        val r = w * 0.09f
+        var row = 0
+        var y = 0f
+        while (y < h + r) {
+            var x = if (row % 2 == 0) 0f else r
+            while (x < w + 2 * r) {
+                rect.set(x - r, y - r, x + r, y + r)
+                canvas.drawArc(rect, 0f, 180f, false, paint)
+                x += 2 * r
+            }
+            y += r * 0.9f
+            row++
+        }
+        paint.style = Paint.Style.FILL
+        val rnd = Random(5)
+        for (i in 0 until 45) {
+            val x = rnd.nextFloat() * w
+            val y2 = h * (0.3f + rnd.nextFloat() * 0.7f)
+            val s2 = w * (0.003f + rnd.nextFloat() * 0.006f)
+            paint.color = Color.argb(80 + rnd.nextInt(150), 255, 120 + rnd.nextInt(100), 30)
+            canvas.drawCircle(x, y2, s2, paint)
+        }
     }
 
     private fun snow(canvas: Canvas, w: Float, h: Float, count: Int) {

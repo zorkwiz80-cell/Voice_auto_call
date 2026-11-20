@@ -24,7 +24,9 @@ object Prefs {
     const val K_WAKE_MEDIA = "wake_media"
     const val K_CLEAR_VOICE = "clear_voice"
     const val K_RAMP = "ramp_ring"
+    const val K_VIBRATE_CALL = "vibrate_call"
 
+    fun vibrateCall(c: Context) = flag(c, K_VIBRATE_CALL, true)
     fun voiceEnabled(c: Context) = flag(c, K_VOICE, true)
     fun speakerOnVoice(c: Context) = flag(c, K_SPEAKER_VOICE, true)
     fun speakerOnButton(c: Context) = flag(c, K_SPEAKER_BUTTON, false)
@@ -62,6 +64,7 @@ object Prefs {
         K_WAKE_MEDIA -> wakeDuringMedia(c)
         K_CLEAR_VOICE -> clearVoice(c)
         K_RAMP -> rampRing(c)
+        K_VIBRATE_CALL -> vibrateCall(c)
         else -> false
     }
 

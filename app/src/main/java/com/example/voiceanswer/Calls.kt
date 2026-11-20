@@ -40,6 +40,7 @@ object Calls {
         var answeredHere = false
         var route: Int? = null
         var maxVolume = false
+        var started = false
     }
 
     interface Listener {
@@ -152,6 +153,7 @@ object Calls {
         } catch (_: Exception) {
         }
         calls.remove(call)
+        if (info != null && info.started) Haptics.callEnded(ctx)
         if (info != null && info.wasRinging && !info.answeredHere) {
             val cause = try {
                 call.details.disconnectCause?.code
@@ -407,6 +409,10 @@ object Calls {
     }
 
     private fun onActive(call: Call, info: Info) {
+        if (!info.started) {
+            info.started = true
+            app?.let { Haptics.callStarted(it) }
+        }
         app?.let { restoreRingVolume(it) }
         app?.let { if (Prefs.clearVoice(it)) clearVoice(it) }
         val route = info.route ?: return

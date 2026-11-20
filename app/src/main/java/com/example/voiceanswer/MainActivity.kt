@@ -213,7 +213,7 @@ class MainActivity : BaseActivity() {
             // имя из контактов важнее старой записи в журнале
             val l = Repo.callLog(this).map { e ->
                 val nm = names[Repo.numKey(e.number)]
-                if (nm != null && nm != e.name) LogEntry(e.id, e.number, nm, e.type, e.date, e.label) else e
+                if (nm != null && nm != e.name) LogEntry(e.id, e.number, nm, e.type, e.date, e.label, e.duration) else e
             }
             main.post {
                 if (isDestroyed) return@post
@@ -622,7 +622,8 @@ class MainActivity : BaseActivity() {
                 e.outgoing -> "Исходящий"
                 else -> "Входящий"
             }
-            sub.text = if (e.label.isEmpty()) kind else kind + " · " + e.label
+            val dur = if (e.duration > 0L) " · " + Logic.formatDuration(e.duration) else ""
+            sub.text = (if (e.label.isEmpty()) kind else kind + " · " + e.label) + dur
             time.text = Repo.when_(e.date)
             root.setOnClickListener { placeCall(e.number) }
             info.setOnClickListener { logSheet(e) }
@@ -706,7 +707,8 @@ class MainActivity : BaseActivity() {
                 reload()
             }
         })
-        Ui.sheet(this, e.title, Calls.formatNumber(e.number), actions)
+        val durText = if (e.duration > 0L) " · разговор " + Logic.formatDuration(e.duration) else ""
+        Ui.sheet(this, e.title, Calls.formatNumber(e.number) + durText, actions)
     }
 
     private fun contactSheet(c: Contact) {

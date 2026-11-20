@@ -164,7 +164,7 @@ class SettingsActivity : BaseActivity() {
         buildLook(col)
         buildHelp(col)
 
-        val about = Ui.text(a, "Голосовой телефон 3.21", 13f, Theme.sub)
+        val about = Ui.text(a, "Голосовой телефон 3.22", 13f, Theme.sub)
         about.gravity = Gravity.CENTER
         col.addView(about, Ui.margins(Ui.lp(Ui.MATCH, Ui.WRAP), 0, Ui.dp(a, 20), 0, 0))
 
@@ -233,6 +233,7 @@ class SettingsActivity : BaseActivity() {
             Ui.text(a, "«Окно сверху» — небольшая панель с кнопками «Принять» и «Отклонить», пока телефон разблокирован. Голосовые команды работают и в ней. Если телефон заблокирован, звонок всё равно открывается на весь экран.", 13f, Theme.sub),
             Ui.margins(Ui.lp(Ui.MATCH, Ui.WRAP), 0, Ui.dp(a, 8), 0, 0)
         )
+        switchRow(c, "Вибрация при разговоре", "Короткий сигнал, когда разговор начался и когда закончился", Prefs.K_VIBRATE_CALL)
         label(c, "РИНГТОН")
         switchRow(c, "Нарастающий рингтон", "Мелодия звонка начинается тихо и постепенно становится громче", Prefs.K_RAMP)
         label(c, "ВРЕМЯ НАРАСТАНИЯ ДО ПОЛНОЙ ГРОМКОСТИ")
