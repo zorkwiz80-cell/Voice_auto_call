@@ -154,7 +154,7 @@ class SeasonDrawable(private val kind: String) : Drawable() {
             "winter" -> { top = 0xFF0E2A47.toInt(); bottom = 0xFF4F86B8.toInt() }
             "summer" -> { top = 0xFF1E78D2.toInt(); bottom = 0xFFF2C25B.toInt() }
             "spring" -> { top = 0xFF2F6B4F.toInt(); bottom = 0xFFD98BB0.toInt() }
-            "xbox" -> { top = 0xFF030603.toInt(); bottom = 0xFF0A4A1A.toInt() }
+            "xbox" -> { top = 0xFF030303.toInt(); bottom = 0xFF000000.toInt() }
             "dragon" -> { top = 0xFF0B0B0C.toInt(); bottom = 0xFF050506.toInt() }
             else -> { top = 0xFF4A2410.toInt(); bottom = 0xFFD9822B.toInt() }
         }
@@ -190,40 +190,32 @@ class SeasonDrawable(private val kind: String) : Drawable() {
         canvas.restore()
     }
 
-    /** X-Box: чёрный фон, зелёное свечение и сетка из шестиугольников (без логотипов). */
+    /** X-Box: почти чёрный фон, мягкое зелёное свечение в центре и светящаяся полоса света внизу. */
     private fun xbox(canvas: Canvas, w: Float, h: Float) {
-        val cx = w * 0.78f
-        val cy = h * 0.2f
         paint.style = Paint.Style.FILL
-        paint.shader = RadialGradient(cx, cy, w * 0.75f, 0x9937E04F.toInt(), 0x0037E04F, Shader.TileMode.CLAMP)
+        // Тусклый серо-зелёный «туман» в верхней части
+        paint.shader = RadialGradient(w / 2f, h * 0.38f, h * 0.5f, 0x3A2B3A22, 0x002B3A22, Shader.TileMode.CLAMP)
         canvas.drawRect(0f, 0f, w, h, paint)
+        // Зелёное свечение в центре
+        paint.shader = RadialGradient(w / 2f, h * 0.46f, w * 0.62f, 0x6639E014, 0x0039E014, Shader.TileMode.CLAMP)
+        canvas.drawRect(0f, 0f, w, h, paint)
+        // Мягкий зелёный свет, спускающийся к полосе
+        val bandY = h * 0.7f
+        paint.shader = LinearGradient(0f, h * 0.5f, 0f, bandY, 0x00206A0C, 0x66206A0C, Shader.TileMode.CLAMP)
+        canvas.drawRect(0f, h * 0.5f, w, bandY, paint)
+        // Светящаяся полоса: широкий эллипс, внутри — более яркое ядро
+        canvas.save()
+        canvas.translate(w / 2f, bandY)
+        canvas.scale(1f, 0.1f)
+        paint.shader = RadialGradient(0f, 0f, w * 0.8f, 0xB37BE020.toInt(), 0x007BE020, Shader.TileMode.CLAMP)
+        canvas.drawCircle(0f, 0f, w * 0.8f, paint)
+        paint.shader = RadialGradient(0f, 0f, w * 0.4f, 0xCCC6FF3A.toInt(), 0x00C6FF3A, Shader.TileMode.CLAMP)
+        canvas.drawCircle(0f, 0f, w * 0.4f, paint)
+        canvas.restore()
+        // Тёмный низ
+        paint.shader = LinearGradient(0f, bandY, 0f, h, 0x00000000, 0xFF000000.toInt(), Shader.TileMode.CLAMP)
+        canvas.drawRect(0f, bandY, w, h, paint)
         paint.shader = null
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = w * 0.003f
-        paint.color = 0x2E6BFF7C
-        val r = w * 0.11f
-        val dx = r * 1.732f
-        val dy = r * 1.5f
-        var row = 0
-        var y = -r
-        while (y < h + r) {
-            var x = if (row % 2 == 0) 0f else dx / 2f
-            while (x < w + dx) {
-                path.reset()
-                for (k in 0 until 6) {
-                    val ang = Math.toRadians((60 * k - 30).toDouble())
-                    val px = x + (r * Math.cos(ang)).toFloat()
-                    val py = y + (r * Math.sin(ang)).toFloat()
-                    if (k == 0) path.moveTo(px, py) else path.lineTo(px, py)
-                }
-                path.close()
-                canvas.drawPath(path, paint)
-                x += dx
-            }
-            y += dy
-            row++
-        }
-        paint.style = Paint.Style.FILL
     }
 
     /** Разбор простого SVG-пути (M, L, Q, C, l, Z) в [Path] — так форму дракона удобно хранить строкой. */
