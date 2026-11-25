@@ -31,6 +31,9 @@ import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
 import android.widget.Toast
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.Executors
 
 /** Главный экран: «Недавние», «Контакты» и набор номера — как в обычном телефоне. */
@@ -688,6 +691,70 @@ class MainActivity : BaseActivity() {
         Toast.makeText(this, "Номер скопирован", Toast.LENGTH_SHORT).show()
     }
 
+    /** Все номера человека и его 5 последних звонков (по любому из номеров) с датой, временем и длительностью. */
+    private fun personInfo(box: LinearLayout, nums: List<PhoneNum>, close: () -> Unit) {
+        val a = this
+        val keys = nums.map { Repo.numKey(it.number) }.filter { it.isNotEmpty() }.toSet()
+        val fmt = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault())
+
+        fun header(t: String) {
+            box.addView(Ui.text(a, t, 12f, Theme.sub, true), Ui.margins(Ui.lp(Ui.WRAP, Ui.WRAP), 0, Ui.dp(a, 16), 0, Ui.dp(a, 4)))
+        }
+
+        header(if (nums.size > 1) "НОМЕРА (${nums.size})" else "НОМЕР")
+        for (n in nums) {
+            val row = LinearLayout(a)
+            row.orientation = LinearLayout.HORIZONTAL
+            row.gravity = Gravity.CENTER_VERTICAL
+            row.setPadding(Ui.dp(a, 6), Ui.dp(a, 8), Ui.dp(a, 6), Ui.dp(a, 8))
+            row.background = Ui.ripple(ColorDrawable(Color.TRANSPARENT), Ui.dpf(a, 12f))
+            row.addView(Ui.text(a, Calls.formatNumber(n.number), 17f, Theme.text), Ui.lp(0, Ui.WRAP, 1f))
+            if (n.label.isNotBlank()) row.addView(Ui.text(a, n.label, 14f, Theme.sub), Ui.lp(Ui.WRAP, Ui.WRAP))
+            row.setOnClickListener {
+                close()
+                placeCall(n.number)
+            }
+            box.addView(row, Ui.lp(Ui.MATCH, Ui.WRAP))
+        }
+
+        val recent = log.filter { Repo.numKey(it.number) in keys }.take(5)
+        header("ПОСЛЕДНИЕ ЗВОНКИ")
+        if (recent.isEmpty()) {
+            box.addView(Ui.text(a, "Звонков в журнале нет", 15f, Theme.sub), Ui.margins(Ui.lp(Ui.WRAP, Ui.WRAP), Ui.dp(a, 6), 0, 0, Ui.dp(a, 4)))
+        }
+        for (r in recent) {
+            val row = LinearLayout(a)
+            row.orientation = LinearLayout.HORIZONTAL
+            row.gravity = Gravity.CENTER_VERTICAL
+            row.setPadding(Ui.dp(a, 6), Ui.dp(a, 7), Ui.dp(a, 6), Ui.dp(a, 7))
+            val icon = Ui.icon(
+                a,
+                when {
+                    r.missed -> R.drawable.ic_call_missed
+                    r.outgoing -> R.drawable.ic_call_made
+                    else -> R.drawable.ic_call_received
+                },
+                if (r.missed) Theme.RED else Theme.sub
+            )
+            row.addView(icon, Ui.lp(Ui.dp(a, 20), Ui.dp(a, 20)))
+            val kind = when {
+                r.missed -> "Пропущенный"
+                r.outgoing -> "Исходящий"
+                else -> "Входящий"
+            }
+            var left = kind
+            if (r.duration > 0L) left += " · " + Logic.formatDuration(r.duration)
+            if (keys.size > 1) left += " · " + Calls.formatNumber(r.number)
+            row.addView(Ui.text(a, left, 15f, if (r.missed) Theme.RED else Theme.text), Ui.margins(Ui.lp(0, Ui.WRAP, 1f), Ui.dp(a, 12), 0, Ui.dp(a, 8), 0))
+            row.addView(Ui.text(a, fmt.format(Date(r.date)), 13f, Theme.sub), Ui.lp(Ui.WRAP, Ui.WRAP))
+            box.addView(row, Ui.lp(Ui.MATCH, Ui.WRAP))
+        }
+
+        val sep = View(a)
+        sep.setBackgroundColor(Theme.line)
+        box.addView(sep, Ui.margins(Ui.lp(Ui.MATCH, 1), 0, Ui.dp(a, 10), 0, Ui.dp(a, 4)))
+    }
+
     private fun logSheet(e: LogEntry) {
         if (e.number.isBlank()) return
         val actions = ArrayList<Triple<Int, String, () -> Unit>>()
@@ -708,7 +775,12 @@ class MainActivity : BaseActivity() {
             }
         })
         val durText = if (e.duration > 0L) " · разговор " + Logic.formatDuration(e.duration) else ""
-        Ui.sheet(this, e.title, Calls.formatNumber(e.number) + durText, actions)
+        val ct = contacts.firstOrNull { c -> c.numbers.any { Repo.numKey(it.number) == Repo.numKey(e.number) } }
+        val nums = if (ct != null && ct.numbers.isNotEmpty()) ct.numbers else listOf(PhoneNum(-1L, e.number, ""))
+        val fmt = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault())
+        Ui.sheet(this, e.title, "Звонок: " + fmt.format(Date(e.date)) + durText, actions) { box, close ->
+            personInfo(box, nums, close)
+        }
     }
 
     private fun contactSheet(c: Contact) {
@@ -727,8 +799,9 @@ class MainActivity : BaseActivity() {
             startActivity(i)
         })
         actions.add(Triple(R.drawable.ic_delete, "Удалить контакт") { confirmDeleteContact(c) })
-        val sub = if (nums.size > 1) "Номеров: ${nums.size}" else Calls.formatNumber(first)
-        Ui.sheet(this, c.name, sub, actions)
+        Ui.sheet(this, c.name, null, actions) { box, close ->
+            personInfo(box, nums, close)
+        }
     }
 
     private fun smsOrPick(nums: List<PhoneNum>) {

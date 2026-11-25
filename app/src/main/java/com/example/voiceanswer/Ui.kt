@@ -108,7 +108,8 @@ object Ui {
     /** Нижняя шторка с пунктами. */
     fun sheet(
         a: Activity, title: String, subtitle: String?,
-        actions: List<Triple<Int, String, () -> Unit>>
+        actions: List<Triple<Int, String, () -> Unit>>,
+        extra: ((LinearLayout, () -> Unit) -> Unit)? = null
     ) {
         val d = Dialog(a)
         d.requestWindowFeature(Window.FEATURE_NO_TITLE)
@@ -125,6 +126,8 @@ object Ui {
         if (!subtitle.isNullOrBlank()) {
             box.addView(text(a, subtitle, 15f, Theme.sub), margins(lp(WRAP, WRAP), 0, dp(a, 2), 0, 0))
         }
+        // Дополнительные сведения (номера, время, последние звонки) — между заголовком и действиями
+        extra?.invoke(box) { d.dismiss() }
         for ((res, label, action) in actions) {
             val row = LinearLayout(a)
             row.orientation = LinearLayout.HORIZONTAL
@@ -139,7 +142,9 @@ object Ui {
             }
             box.addView(row, margins(lp(MATCH, WRAP), 0, dp(a, 6), 0, 0))
         }
-        d.setContentView(box)
+        val scroll = android.widget.ScrollView(a)
+        scroll.addView(box, lp(MATCH, WRAP))
+        d.setContentView(scroll)
         d.window?.let { w ->
             w.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
             w.setLayout(MATCH, WRAP)
