@@ -11,8 +11,8 @@ android {
         applicationId = "com.example.voicephone"
         minSdk = 26
         targetSdk = 34
-        versionCode = 28
-        versionName = "3.25"
+        versionCode = 29
+        versionName = "3.26"
     }
 
     signingConfigs {

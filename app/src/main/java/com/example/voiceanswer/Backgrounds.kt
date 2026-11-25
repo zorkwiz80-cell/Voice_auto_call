@@ -37,6 +37,7 @@ object Backgrounds {
         Opt("autumn", "Осенняя"),
         Opt("xbox", "X-Box"),
         Opt("dragon", "Red Dragon"),
+        Opt("mortal", "Mortal_K"),
         Opt("custom", "Своя картинка")
     )
 
@@ -66,7 +67,7 @@ object Backgrounds {
 
     /** Рисунок фона для темы; null — без темы (или своя картинка ещё не выбрана). */
     fun drawable(c: Context, id: String): Drawable? = when (id) {
-        "newyear", "winter", "summer", "spring", "autumn", "xbox", "dragon" -> SeasonDrawable(id)
+        "newyear", "winter", "summer", "spring", "autumn", "xbox", "dragon", "mortal" -> SeasonDrawable(id)
         "custom" -> loadCustom(c)?.let { CustomDrawable(it) }
         else -> null
     }
@@ -155,6 +156,7 @@ class SeasonDrawable(private val kind: String) : Drawable() {
             "summer" -> { top = 0xFF1E78D2.toInt(); bottom = 0xFFF2C25B.toInt() }
             "spring" -> { top = 0xFF2F6B4F.toInt(); bottom = 0xFFD98BB0.toInt() }
             "xbox" -> { top = 0xFF030303.toInt(); bottom = 0xFF000000.toInt() }
+            "mortal" -> { top = 0xFF050102.toInt(); bottom = 0xFF1C0305.toInt() }
             "dragon" -> { top = 0xFF0B0B0C.toInt(); bottom = 0xFF050506.toInt() }
             else -> { top = 0xFF4A2410.toInt(); bottom = 0xFFD9822B.toInt() }
         }
@@ -184,6 +186,7 @@ class SeasonDrawable(private val kind: String) : Drawable() {
             }
             "xbox" -> xbox(canvas, w, h)
             "dragon" -> dragon(canvas, w, h)
+            "mortal" -> mortal(canvas, w, h)
             "spring" -> leaves(canvas, w, h, 40, intArrayOf(0xFFFFFFFF.toInt(), 0xFFFFC1D9.toInt(), 0xFFFF8FB8.toInt()), 0.016f)
             else -> leaves(canvas, w, h, 34, intArrayOf(0xFFFF7A1A.toInt(), 0xFFD7263D.toInt(), 0xFFFFC53D.toInt(), 0xFF8B4513.toInt()), 0.03f)
         }
@@ -216,6 +219,50 @@ class SeasonDrawable(private val kind: String) : Drawable() {
         paint.shader = LinearGradient(0f, bandY, 0f, h, 0x00000000, 0xFF000000.toInt(), Shader.TileMode.CLAMP)
         canvas.drawRect(0f, bandY, w, h, paint)
         paint.shader = null
+    }
+
+    /** Mortal_K: чёрная арена, жар снизу, светящиеся трещины лавы и летящие искры. */
+    private fun mortal(canvas: Canvas, w: Float, h: Float) {
+        paint.style = Paint.Style.FILL
+        paint.shader = RadialGradient(w / 2f, h * 1.02f, h * 0.8f, 0xCCFF3A00.toInt(), 0x00FF3A00, Shader.TileMode.CLAMP)
+        canvas.drawRect(0f, 0f, w, h, paint)
+        paint.shader = RadialGradient(w / 2f, h * 0.98f, h * 0.4f, 0x99FFB000.toInt(), 0x00FFB000, Shader.TileMode.CLAMP)
+        canvas.drawRect(0f, 0f, w, h, paint)
+        paint.shader = null
+
+        // Трещины лавы: ломаные линии от нижней части вверх, с широким мягким свечением и тонким ярким ядром
+        val rnd = Random(21)
+        paint.style = Paint.Style.STROKE
+        paint.strokeCap = Paint.Cap.ROUND
+        paint.strokeJoin = Paint.Join.ROUND
+        for (k in 0 until 9) {
+            var x = rnd.nextFloat() * w
+            var y = h * (0.62f + rnd.nextFloat() * 0.38f)
+            path.reset()
+            path.moveTo(x, y)
+            for (i in 0 until 8) {
+                x += (rnd.nextFloat() - 0.5f) * w * 0.2f
+                y -= rnd.nextFloat() * h * 0.05f
+                path.lineTo(x, y)
+            }
+            paint.strokeWidth = w * 0.014f
+            paint.color = 0x33FF4A00
+            canvas.drawPath(path, paint)
+            paint.strokeWidth = w * 0.004f
+            paint.color = 0xCCFF9A1A.toInt()
+            canvas.drawPath(path, paint)
+        }
+        paint.strokeCap = Paint.Cap.BUTT
+
+        // Искры
+        paint.style = Paint.Style.FILL
+        for (i in 0 until 60) {
+            val x = rnd.nextFloat() * w
+            val y = h * (0.25f + rnd.nextFloat() * 0.75f)
+            val r = w * (0.002f + rnd.nextFloat() * 0.005f)
+            paint.color = Color.argb(90 + rnd.nextInt(150), 255, 110 + rnd.nextInt(120), 20)
+            canvas.drawCircle(x, y, r, paint)
+        }
     }
 
     /** Разбор простого SVG-пути (M, L, Q, C, l, Z) в [Path] — так форму дракона удобно хранить строкой. */

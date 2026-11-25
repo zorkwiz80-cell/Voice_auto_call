@@ -41,10 +41,12 @@ object Logic {
             word.length >= 5 -> 1
             else -> 0
         }
-        if (allowed == 0) return -1
+        if (allowed == 0 && word.length < 6) return -1
         var pos = 0
         for (t in phrase.split(' ')) {
             if (t.isNotEmpty() && Math.abs(t.length - word.length) <= allowed && lev(t, word) <= allowed) return pos
+            // та же основа с другим окончанием: «отвечаю», «сбросить» ~ «сброс»
+            if (word.length >= 6 && t.length >= word.length - 2 && t.startsWith(word.take(word.length - 2))) return pos
             pos += t.length + 1
         }
         return -1

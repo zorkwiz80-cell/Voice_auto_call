@@ -198,7 +198,11 @@ class VoiceListener(
             }
         }
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+        // Для коротких команд («принять», «отклонить») лучше подходит модель коротких фраз
+        intent.putExtra(
+            RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+            if (onPhrase == null) RecognizerIntent.LANGUAGE_MODEL_WEB_SEARCH else RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+        )
         intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ru-RU")
         intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
         intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 10)
@@ -207,6 +211,11 @@ class VoiceListener(
         if (Build.VERSION.SDK_INT >= 33) {
             // подсказываем распознавателю, какие слова ждём — «принять» реже превратится в «привет»
             intent.putStringArrayListExtra(RecognizerIntent.EXTRA_BIASING_STRINGS, ArrayList(if (bias != null) bias.invoke() else accept + reject))
+        }
+        if (onPhrase == null) {
+            // команда из одного слова: не ждём долгой тишины, ответ приходит быстрее
+            intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 800L)
+            intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 600L)
         }
         if (onPhrase != null) {
             // фраза «Абобус, позвони дяде Серёже» произносится с паузами — не обрывать её раньше времени
@@ -245,7 +254,7 @@ class VoiceListener(
         override fun onBeginningOfSpeech() {}
 
         override fun onRmsChanged(rmsdB: Float) {
-            onLevel(((rmsdB + 2f) / 12f).coerceIn(0f, 1f))
+            onLevel(((rmsdB + 2f) / 9f).coerceIn(0f, 1f))
         }
 
         override fun onBufferReceived(buffer: ByteArray?) {}
