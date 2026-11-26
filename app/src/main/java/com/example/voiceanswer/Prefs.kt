@@ -126,7 +126,10 @@ object Prefs {
     fun setRampSeconds(c: Context, s: Int) = p(c).edit().putInt("ramp_sec", s).apply()
 
     /** Фоновая тема: none, newyear, winter, summer, spring, autumn, custom. */
-    fun bgTheme(c: Context): String = p(c).getString("bg_theme", "none") ?: "none"
+    fun bgTheme(c: Context): String {
+        val id = p(c).getString("bg_theme", "none") ?: "none"
+        return if (id in setOf("newyear", "winter", "summer", "spring", "autumn", "custom")) id else "none"
+    }
     fun setBgTheme(c: Context, id: String) = p(c).edit().putString("bg_theme", id).apply()
 
     /** Прозрачность панелей приложения в процентах (0 — непрозрачные, максимум 70). */

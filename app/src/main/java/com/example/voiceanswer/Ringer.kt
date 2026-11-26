@@ -44,14 +44,16 @@ object Ringer {
                 p.setVolume(g, g)
             } catch (_: Exception) {
             }
-            if (SystemClock.elapsedRealtime() - startedAt < rampMs) handler.postDelayed(this, 150)
+            if (SystemClock.elapsedRealtime() - startedAt < rampMs) handler.postDelayed(this, 40)
         }
     }
 
     private fun currentGain(): Float {
         if (rampMs <= 0L) return maxGain
         val t = min(1f, (SystemClock.elapsedRealtime() - startedAt).toFloat() / rampMs)
-        return (0.06f + 0.94f * t * t) * maxGain
+        // от -30 дБ до полной громкости с равномерным ростом в децибелах — подъём слышен плавным
+        val g = 0.0316f * Math.pow(31.6, t.toDouble()).toFloat()
+        return min(1f, g) * maxGain
     }
 
     /** Нужно ли звонить при текущем режиме «Не беспокоить». [known] — звонящий есть в контактах. */
@@ -116,7 +118,7 @@ object Ringer {
             player = mp
             playing = true
             handler.removeCallbacks(stepper)
-            if (rampMs > 0L) handler.postDelayed(stepper, 150)
+            if (rampMs > 0L) handler.postDelayed(stepper, 40)
         } catch (e: Exception) {
             // Запасной путь: обычный рингтон без нарастания
             try {
