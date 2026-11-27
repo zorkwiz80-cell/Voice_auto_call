@@ -164,7 +164,7 @@ class SettingsActivity : BaseActivity() {
         buildLook(col)
         buildHelp(col)
 
-        val about = Ui.text(a, "Голосовой телефон 3.27", 13f, Theme.sub)
+        val about = Ui.text(a, "Голосовой телефон 3.28", 13f, Theme.sub)
         about.gravity = Gravity.CENTER
         col.addView(about, Ui.margins(Ui.lp(Ui.MATCH, Ui.WRAP), 0, Ui.dp(a, 20), 0, 0))
 
@@ -246,6 +246,15 @@ class SettingsActivity : BaseActivity() {
             Ui.text(a, "Используется мелодия звонка, выбранная в настройках телефона. Кнопка громкости заглушает звонок.", 13f, Theme.sub),
             Ui.margins(Ui.lp(Ui.MATCH, Ui.WRAP), 0, Ui.dp(a, 8), 0, 0)
         )
+        c.addView(pill("Проверить рингтон") {
+            val am = getSystemService(android.media.AudioManager::class.java)
+            if (!Ringer.playing && am.ringerMode != android.media.AudioManager.RINGER_MODE_NORMAL) {
+                Toast.makeText(a, "Включите звук телефона: сейчас беззвучный режим или только вибрация", Toast.LENGTH_LONG).show()
+            } else {
+                Ringer.test(a)
+                Toast.makeText(a, if (Ringer.playing) "Звонит с нарастанием. Нажмите ещё раз, чтобы остановить" else "Остановлено", Toast.LENGTH_SHORT).show()
+            }
+        }, Ui.margins(Ui.lp(Ui.WRAP, Ui.WRAP), 0, Ui.dp(a, 12), 0, 0))
     }
 
     private fun buildWords(col: LinearLayout) {

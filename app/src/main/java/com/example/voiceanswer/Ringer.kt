@@ -38,10 +38,15 @@ object Ringer {
 
     private val stepper = object : Runnable {
         override fun run() {
-            val p = player ?: return
             val g = currentGain()
+            val p = player
             try {
-                p.setVolume(g, g)
+                if (p != null) {
+                    p.setVolume(g, g)
+                } else {
+                    val f = fallback ?: return
+                    if (Build.VERSION.SDK_INT >= 28) f.volume = g else return
+                }
             } catch (_: Exception) {
             }
             if (SystemClock.elapsedRealtime() - startedAt < rampMs) handler.postDelayed(this, 40)
@@ -51,8 +56,8 @@ object Ringer {
     private fun currentGain(): Float {
         if (rampMs <= 0L) return maxGain
         val t = min(1f, (SystemClock.elapsedRealtime() - startedAt).toFloat() / rampMs)
-        // от -30 дБ до полной громкости с равномерным ростом в децибелах — подъём слышен плавным
-        val g = 0.0316f * Math.pow(31.6, t.toDouble()).toFloat()
+        // от -26 дБ (слышно, но тихо) до полной громкости с равномерным ростом в децибелах
+        val g = 0.05f * Math.pow(20.0, t.toDouble()).toFloat()
         return min(1f, g) * maxGain
     }
 
@@ -68,6 +73,7 @@ object Ringer {
     }
 
     fun start(ctx: Context, known: Boolean) {
+        if (playing) return // уже звонит: не сбрасываем нарастание
         stop()
         val app = ctx.applicationContext
         val am = try {
@@ -94,54 +100,109 @@ object Ringer {
         rampMs = if (Prefs.rampRing(app)) Prefs.rampSeconds(app).coerceIn(3, 60) * 1000L else 0L
         startedAt = SystemClock.elapsedRealtime()
 
-        val uri: Uri? = try {
-            RingtoneManager.getActualDefaultRingtoneUri(app, RingtoneManager.TYPE_RINGTONE)
-                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-        } catch (e: Exception) {
-            null
+        val uris = ArrayList<Uri>()
+        try {
+            val u = RingtoneManager.getActualDefaultRingtoneUri(app, RingtoneManager.TYPE_RINGTONE)
+            if (u != null) uris.add(u)
+        } catch (_: Exception) {
         }
-        if (uri == null) return
+        try {
+            val d = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+            if (d != null && !uris.contains(d)) uris.add(d)
+        } catch (_: Exception) {
+        }
+        if (uris.isEmpty()) return
 
         val attrs = AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
             .build()
+
+        // 1) MediaPlayer с плавной громкостью: сначала по ссылке, затем через открытый файл
+        for (uri in uris) {
+            val mp = makePlayer(app, uri, attrs)
+            if (mp != null) {
+                try {
+                    val g = currentGain()
+                    mp.setVolume(g, g)
+                    mp.start()
+                    player = mp
+                    playing = true
+                    handler.removeCallbacks(stepper)
+                    if (rampMs > 0L) handler.postDelayed(stepper, 40)
+                    return
+                } catch (e: Exception) {
+                    try {
+                        mp.release()
+                    } catch (_: Exception) {
+                    }
+                }
+            }
+        }
+
+        // 2) Запасной путь: обычный рингтон (на Android 9+ громкость тоже нарастает)
+        for (uri in uris) {
+            try {
+                val rt = RingtoneManager.getRingtone(app, uri) ?: continue
+                rt.audioAttributes = attrs
+                if (Build.VERSION.SDK_INT >= 28) {
+                    rt.isLooping = true
+                    rt.volume = currentGain()
+                }
+                rt.play()
+                fallback = rt
+                playing = true
+                handler.removeCallbacks(stepper)
+                if (rampMs > 0L && Build.VERSION.SDK_INT >= 28) handler.postDelayed(stepper, 40)
+                return
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    private fun makePlayer(app: Context, uri: Uri, attrs: AudioAttributes): MediaPlayer? {
+        // по ссылке
         try {
             val mp = MediaPlayer()
             mp.setAudioAttributes(attrs)
             mp.setDataSource(app, uri)
             mp.isLooping = true
             mp.prepare()
-            val g = currentGain()
-            mp.setVolume(g, g)
-            mp.start()
-            player = mp
-            playing = true
-            handler.removeCallbacks(stepper)
-            if (rampMs > 0L) handler.postDelayed(stepper, 40)
-        } catch (e: Exception) {
-            // Запасной путь: обычный рингтон без нарастания
-            try {
-                player?.release()
-            } catch (_: Exception) {
-            }
-            player = null
-            try {
-                val r = RingtoneManager.getRingtone(app, uri)
-                if (r != null) {
-                    r.audioAttributes = attrs
-                    if (Build.VERSION.SDK_INT >= 28) r.isLooping = true
-                    r.play()
-                    fallback = r
-                    playing = true
-                }
-            } catch (_: Exception) {
-            }
+            return mp
+        } catch (_: Exception) {
         }
+        // через открытый файл (если прямая ссылка недоступна)
+        try {
+            val afd = app.contentResolver.openAssetFileDescriptor(uri, "r") ?: return null
+            afd.use {
+                val mp = MediaPlayer()
+                mp.setAudioAttributes(attrs)
+                mp.setDataSource(it.fileDescriptor, it.startOffset, it.length)
+                mp.isLooping = true
+                mp.prepare()
+                return mp
+            }
+        } catch (_: Exception) {
+        }
+        return null
     }
+
+    /** Проверка из настроек: звонит с нарастанием и сама останавливается. Повторный вызов — остановка. */
+    fun test(ctx: Context) {
+        if (playing) {
+            stop()
+            return
+        }
+        start(ctx, true)
+        val ms = if (Prefs.rampRing(ctx)) Prefs.rampSeconds(ctx).coerceIn(3, 60) * 1000L + 4000L else 6000L
+        handler.postDelayed(autoStop, ms)
+    }
+
+    private val autoStop = Runnable { stop() }
 
     fun stop() {
         handler.removeCallbacks(stepper)
+        handler.removeCallbacks(autoStop)
         playing = false
         val p = player
         player = null

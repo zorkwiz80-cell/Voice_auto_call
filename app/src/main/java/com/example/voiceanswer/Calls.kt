@@ -263,7 +263,17 @@ object Calls {
     private fun onRinging(ctx: Context, info: Info) {
         info.wasRinging = true
         // Звонок проигрываем сами (нарастающая громкость); при втором звонке во время разговора — без мелодии
-        if (calls.size <= 1) Ringer.start(ctx, !info.name.isNullOrBlank())
+        if (calls.size <= 1) {
+            // На некоторых телефонах система всё равно играет свой рингтон на полной громкости —
+            // заглушаем его (несколько раз, пока звонок идёт) и проигрываем свой, нарастающий
+            silenceRinger(ctx)
+            for (delay in longArrayOf(250, 800, 2000)) {
+                handler.postDelayed({
+                    if (calls.any { it.state == Call.STATE_RINGING }) silenceRinger(ctx)
+                }, delay)
+            }
+            Ringer.start(ctx, !info.name.isNullOrBlank())
+        }
         if (Prefs.announce(ctx)) {
             announcing = true
             val a = announcer ?: Announcer(ctx).also { announcer = it }
