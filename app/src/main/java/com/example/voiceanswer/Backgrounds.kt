@@ -146,7 +146,7 @@ class SeasonDrawable(private val kind: String) : Drawable() {
         val top: Int
         val bottom: Int
         when (kind) {
-            "newyear" -> { top = 0xFF4A0D14.toInt(); bottom = 0xFF0B3B26.toInt() }
+            "newyear" -> { top = 0xFF0A1236.toInt(); bottom = 0xFF5A0F2E.toInt() }
             "winter" -> { top = 0xFF0E2A47.toInt(); bottom = 0xFF4F86B8.toInt() }
             "summer" -> { top = 0xFF1E78D2.toInt(); bottom = 0xFFF2C25B.toInt() }
             "spring" -> { top = 0xFF2F6B4F.toInt(); bottom = 0xFFD98BB0.toInt() }
@@ -159,8 +159,12 @@ class SeasonDrawable(private val kind: String) : Drawable() {
 
         when (kind) {
             "newyear" -> {
-                snow(canvas, w, h, 70)
+                stars(canvas, w, h)
+                snow(canvas, w, h, 90)
+                fir(canvas, w * 0.06f, h * 1.0f, w * 0.40f, h * 0.30f, 1)
+                fir(canvas, w * 0.94f, h * 1.0f, w * 0.34f, h * 0.25f, 2)
                 garland(canvas, w, h)
+                garland(canvas, w, h, 0.045f)
             }
             "winter" -> {
                 snow(canvas, w, h, 110)
@@ -193,7 +197,81 @@ class SeasonDrawable(private val kind: String) : Drawable() {
         }
     }
 
-    private fun garland(canvas: Canvas, w: Float, h: Float) {
+    /** Золотые звёздочки-искры на ночном небе. */
+    private fun stars(canvas: Canvas, w: Float, h: Float) {
+        val rnd = Random(21)
+        paint.style = Paint.Style.FILL
+        for (i in 0 until 26) {
+            val x = rnd.nextFloat() * w
+            val y = h * 0.06f + rnd.nextFloat() * h * 0.6f
+            val r = w * (0.008f + rnd.nextFloat() * 0.012f)
+            paint.color = Color.argb(70 + rnd.nextInt(80), 255, 226, 130)
+            canvas.drawCircle(x, y, r * 2f, paint)
+            paint.color = Color.argb(230, 255, 240, 170)
+            path.reset()
+            path.moveTo(x, y - r * 1.6f)
+            path.lineTo(x + r * 0.35f, y - r * 0.35f)
+            path.lineTo(x + r * 1.6f, y)
+            path.lineTo(x + r * 0.35f, y + r * 0.35f)
+            path.lineTo(x, y + r * 1.6f)
+            path.lineTo(x - r * 0.35f, y + r * 0.35f)
+            path.lineTo(x - r * 1.6f, y)
+            path.lineTo(x - r * 0.35f, y - r * 0.35f)
+            path.close()
+            canvas.drawPath(path, paint)
+        }
+    }
+
+    /** Наряженная ёлка (основание в точке bx, by), с шарами и золотой звездой на макушке. */
+    private fun fir(canvas: Canvas, bx: Float, by: Float, tw: Float, th: Float, seed: Int) {
+        val tiers = 4
+        val rnd = Random(seed.toLong())
+        paint.style = Paint.Style.FILL
+        paint.color = 0xFF5B3A1E.toInt()
+        canvas.drawRect(bx - tw * 0.04f, by - th * 0.06f, bx + tw * 0.04f, by, paint)
+        val green = intArrayOf(0xFF0E5A34.toInt(), 0xFF13703F.toInt(), 0xFF198A4C.toInt(), 0xFF1FA35A.toInt())
+        val balls = intArrayOf(0xFFFF3B47.toInt(), 0xFFFFD60A.toInt(), 0xFF3D9BFF.toInt(), 0xFFFF7AD9.toInt(), 0xFFFFFFFF.toInt())
+        val tierH = th * 0.30f
+        for (t in 0 until tiers) {
+            val yBottom = by - th * 0.05f - t * th * 0.21f
+            val yTop = yBottom - tierH
+            val half = tw * 0.5f * (1f - t * 0.2f)
+            paint.color = green[t]
+            path.reset()
+            path.moveTo(bx, yTop)
+            path.lineTo(bx + half, yBottom)
+            path.lineTo(bx - half, yBottom)
+            path.close()
+            canvas.drawPath(path, paint)
+            for (k in 0 until 4) {
+                val fy = yTop + tierH * (0.45f + rnd.nextFloat() * 0.5f)
+                val span = half * ((fy - yTop) / tierH)
+                val fx = bx + (rnd.nextFloat() * 2f - 1f) * span * 0.8f
+                val c = balls[rnd.nextInt(balls.size)]
+                paint.color = Color.argb(70, Color.red(c), Color.green(c), Color.blue(c))
+                canvas.drawCircle(fx, fy, tw * 0.05f, paint)
+                paint.color = c
+                canvas.drawCircle(fx, fy, tw * 0.024f, paint)
+            }
+        }
+        val topY = by - th * 0.05f - (tiers - 1) * th * 0.21f - tierH
+        val r = tw * 0.075f
+        paint.color = 0x55FFD54F
+        canvas.drawCircle(bx, topY, r * 1.8f, paint)
+        paint.color = 0xFFFFD54F.toInt()
+        path.reset()
+        for (i in 0 until 10) {
+            val ang = Math.PI / 5 * i - Math.PI / 2
+            val rr = if (i % 2 == 0) r else r * 0.45f
+            val px = bx + (Math.cos(ang) * rr).toFloat()
+            val py = topY + (Math.sin(ang) * rr).toFloat()
+            if (i == 0) path.moveTo(px, py) else path.lineTo(px, py)
+        }
+        path.close()
+        canvas.drawPath(path, paint)
+    }
+
+    private fun garland(canvas: Canvas, w: Float, h: Float, offset: Float = 0f) {
         val colors = intArrayOf(0xFFFF3B47.toInt(), 0xFFFFD60A.toInt(), 0xFF2ECC71.toInt(), 0xFF3D9BFF.toInt())
         val n = 9
         val sag = h * 0.025f
@@ -201,11 +279,11 @@ class SeasonDrawable(private val kind: String) : Drawable() {
         paint.strokeWidth = w * 0.004f
         paint.color = 0xFF1B1B1B.toInt()
         path.reset()
-        path.moveTo(0f, h * 0.012f)
+        path.moveTo(0f, (h * 0.012f + h * offset))
         for (i in 0 until n) {
             val x0 = w * i / n
             val x1 = w * (i + 1) / n
-            path.quadTo((x0 + x1) / 2f, h * 0.012f + sag * 2f, x1, h * 0.012f)
+            path.quadTo((x0 + x1) / 2f, (h * 0.012f + h * offset) + sag * 2f, x1, (h * 0.012f + h * offset))
         }
         canvas.drawPath(path, paint)
         paint.style = Paint.Style.FILL
@@ -213,7 +291,7 @@ class SeasonDrawable(private val kind: String) : Drawable() {
             val x0 = w * i / n
             val x1 = w * (i + 1) / n
             val cx = (x0 + x1) / 2f
-            val cy = h * 0.012f + sag
+            val cy = (h * 0.012f + h * offset) + sag
             val c = colors[i % colors.size]
             paint.color = Color.argb(60, Color.red(c), Color.green(c), Color.blue(c))
             canvas.drawCircle(cx, cy + w * 0.012f, w * 0.03f, paint)
