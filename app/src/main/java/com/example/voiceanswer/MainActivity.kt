@@ -12,6 +12,8 @@ import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
+import android.media.RingtoneManager
 import android.os.Handler
 import android.os.Looper
 import android.provider.CallLog
@@ -44,6 +46,7 @@ class MainActivity : BaseActivity() {
         const val REQ_ROLE = 11
         const val REQ_CALL = 12
         const val REQ_MIC = 13
+        const val REQ_RINGTONE = 14
     }
 
     private class Row(val header: String?, val contact: Contact?)
@@ -692,6 +695,44 @@ class MainActivity : BaseActivity() {
     }
 
     /** Все номера человека и его 5 последних звонков (по любому из номеров) с датой, временем и длительностью. */
+    private var pendingRingKeys: Set<String> = emptySet()
+
+    /** Открывает системный выбор мелодии для этого абонента. */
+    private fun pickRingtone(keys: Set<String>, current: String?) {
+        pendingRingKeys = keys
+        try {
+            val i = Intent(RingtoneManager.ACTION_RINGTONE_PICKER)
+            i.putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_RINGTONE)
+            i.putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+            i.putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, true)
+            i.putExtra(RingtoneManager.EXTRA_RINGTONE_DEFAULT_URI, Settings.System.DEFAULT_RINGTONE_URI)
+            i.putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Рингтон абонента")
+            val existing: Uri? = when (current) {
+                null -> Settings.System.DEFAULT_RINGTONE_URI
+                "silent" -> null
+                else -> Uri.parse(current)
+            }
+            i.putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, existing)
+            startActivityForResult(i, REQ_RINGTONE)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Не удалось открыть выбор рингтона", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != REQ_RINGTONE || resultCode != RESULT_OK || data == null) return
+        val picked: Uri? = data.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+        val value: String? = when {
+            picked == null -> "silent"
+            picked == Settings.System.DEFAULT_RINGTONE_URI -> null
+            else -> picked.toString()
+        }
+        Prefs.setRingFor(this, pendingRingKeys, value)
+        Toast.makeText(this, if (value == null) "Будет звучать стандартный рингтон" else "Рингтон абонента сохранён", Toast.LENGTH_SHORT).show()
+    }
+
     private fun personInfo(box: LinearLayout, nums: List<PhoneNum>, close: () -> Unit) {
         val a = this
         val keys = nums.map { Repo.numKey(it.number) }.filter { it.isNotEmpty() }.toSet()
@@ -716,6 +757,22 @@ class MainActivity : BaseActivity() {
             }
             box.addView(row, Ui.lp(Ui.MATCH, Ui.WRAP))
         }
+
+        // Личный рингтон абонента
+        header("РИНГТОН АБОНЕНТА")
+        val current = nums.firstNotNullOfOrNull { Ringer.customFor(a, it.number) }
+        val ringRow = LinearLayout(a)
+        ringRow.orientation = LinearLayout.HORIZONTAL
+        ringRow.gravity = Gravity.CENTER_VERTICAL
+        ringRow.setPadding(Ui.dp(a, 6), Ui.dp(a, 8), Ui.dp(a, 6), Ui.dp(a, 8))
+        ringRow.background = Ui.ripple(ColorDrawable(Color.TRANSPARENT), Ui.dpf(a, 12f))
+        ringRow.addView(Ui.text(a, Ringer.titleOf(a, current), 17f, Theme.text), Ui.lp(0, Ui.WRAP, 1f))
+        ringRow.addView(Ui.text(a, "Изменить", 14f, Theme.accent), Ui.lp(Ui.WRAP, Ui.WRAP))
+        ringRow.setOnClickListener {
+            close()
+            pickRingtone(keys, current)
+        }
+        box.addView(ringRow, Ui.lp(Ui.MATCH, Ui.WRAP))
 
         val recent = log.filter { Repo.numKey(it.number) in keys }.take(5)
         header("ПОСЛЕДНИЕ ЗВОНКИ")

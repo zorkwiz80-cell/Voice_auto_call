@@ -272,7 +272,7 @@ object Calls {
                     if (calls.any { it.state == Call.STATE_RINGING }) silenceRinger(ctx)
                 }, delay)
             }
-            Ringer.start(ctx, !info.name.isNullOrBlank())
+            Ringer.start(ctx, !info.name.isNullOrBlank(), Ringer.customFor(ctx, info.number))
         }
         if (Prefs.announce(ctx)) {
             announcing = true

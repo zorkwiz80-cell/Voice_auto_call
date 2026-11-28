@@ -72,7 +72,38 @@ object Ringer {
         true
     }
 
-    fun start(ctx: Context, known: Boolean) {
+    /** Личный рингтон абонента: из настроек приложения, иначе из контакта телефона. null — стандартный. */
+    fun customFor(ctx: Context, number: String): String? {
+        val key = Repo.numKey(number)
+        if (key.isEmpty()) return null
+        Prefs.ringFor(ctx, key)?.let { return it }
+        try {
+            if (ctx.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                val uri = Uri.withAppendedPath(android.provider.ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(number))
+                ctx.contentResolver.query(uri, arrayOf(android.provider.ContactsContract.PhoneLookup.CUSTOM_RINGTONE), null, null, null)?.use { cur ->
+                    if (cur.moveToFirst()) {
+                        val v = cur.getString(0)
+                        if (!v.isNullOrBlank()) return v
+                    }
+                }
+            }
+        } catch (_: Exception) {
+        }
+        return null
+    }
+
+    /** Название мелодии для показа в списке. */
+    fun titleOf(ctx: Context, value: String?): String {
+        if (value == null) return "Стандартный"
+        if (value == "silent") return "Без звука"
+        return try {
+            RingtoneManager.getRingtone(ctx, Uri.parse(value))?.getTitle(ctx) ?: "Свой рингтон"
+        } catch (e: Exception) {
+            "Свой рингтон"
+        }
+    }
+
+    fun start(ctx: Context, known: Boolean, custom: String? = null) {
         if (playing) return // уже звонит: не сбрасываем нарастание
         stop()
         val app = ctx.applicationContext
@@ -96,11 +127,22 @@ object Ringer {
             return
         }
 
+        if (custom == "silent") {
+            // для этого абонента выбран «без звука»: только вибрация (если включена)
+            playing = true
+            return
+        }
         maxGain = if (Prefs.quietRinger(app)) 0.5f else 1f
         rampMs = if (Prefs.rampRing(app)) Prefs.rampSeconds(app).coerceIn(3, 60) * 1000L else 0L
         startedAt = SystemClock.elapsedRealtime()
 
         val uris = ArrayList<Uri>()
+        if (custom != null) {
+            try {
+                uris.add(Uri.parse(custom))
+            } catch (_: Exception) {
+            }
+        }
         try {
             val u = RingtoneManager.getActualDefaultRingtoneUri(app, RingtoneManager.TYPE_RINGTONE)
             if (u != null) uris.add(u)

@@ -115,6 +115,16 @@ object Prefs {
     fun setHue(c: Context, h: Int) = p(c).edit().putInt("hue", h).apply()
     fun setBg(c: Context, m: String) = p(c).edit().putString("bg", m).apply()
 
+    /** Личный рингтон абонента по номеру (последние 10 цифр): null — не задан, "silent" — без звука, иначе ссылка на мелодию. */
+    fun ringFor(c: Context, key: String): String? = p(c).getString("ring_$key", null)
+    fun setRingFor(c: Context, keys: Collection<String>, value: String?) {
+        val e = p(c).edit()
+        for (k in keys) {
+            if (value == null) e.remove("ring_$k") else e.putString("ring_$k", value)
+        }
+        e.apply()
+    }
+
     /** Как показывать входящий: "full" — на весь экран, "popup" — окно сверху (на разблокированном телефоне). */
     fun callMode(c: Context): String = p(c).getString("call_mode", "full") ?: "full"
     fun setCallMode(c: Context, m: String) = p(c).edit().putString("call_mode", m).apply()
