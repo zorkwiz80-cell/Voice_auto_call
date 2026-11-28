@@ -190,6 +190,7 @@ class MainActivity : BaseActivity() {
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQ_RINGTONE && resultCode == RESULT_OK && data != null) onRingtonePicked(data)
         for (b in banners) b.update()
     }
 
@@ -720,9 +721,7 @@ class MainActivity : BaseActivity() {
     }
 
     @Suppress("DEPRECATION")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != REQ_RINGTONE || resultCode != RESULT_OK || data == null) return
+    private fun onRingtonePicked(data: Intent) {
         val picked: Uri? = data.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
         val value: String? = when {
             picked == null -> "silent"
