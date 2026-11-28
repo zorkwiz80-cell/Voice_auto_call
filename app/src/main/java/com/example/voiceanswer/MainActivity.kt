@@ -47,6 +47,7 @@ class MainActivity : BaseActivity() {
         const val REQ_CALL = 12
         const val REQ_MIC = 13
         const val REQ_RINGTONE = 14
+        const val REQ_AUDIO = 15
     }
 
     private class Row(val header: String?, val contact: Contact?)
@@ -179,6 +180,7 @@ class MainActivity : BaseActivity() {
         if (requestCode == REQ_MIC && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
             startVoiceCall()
         }
+        if (requestCode == REQ_AUDIO) openRingtonePicker()
         if (requestCode == REQ_CALL) {
             val n = pendingCall
             pendingCall = null
@@ -699,8 +701,24 @@ class MainActivity : BaseActivity() {
     private var pendingRingKeys: Set<String> = emptySet()
 
     /** Открывает системный выбор мелодии для этого абонента. */
+    private var pendingRingCurrent: String? = null
+
+    private fun audioPerm(): String =
+        if (android.os.Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE
+
     private fun pickRingtone(keys: Set<String>, current: String?) {
         pendingRingKeys = keys
+        pendingRingCurrent = current
+        // доступ к музыке нужен, чтобы приложение могло проиграть выбранную мелодию при звонке
+        if (!Perms.has(this, audioPerm())) {
+            requestPermissions(arrayOf(audioPerm()), REQ_AUDIO)
+            return
+        }
+        openRingtonePicker()
+    }
+
+    private fun openRingtonePicker() {
+        val current = pendingRingCurrent
         try {
             val i = Intent(RingtoneManager.ACTION_RINGTONE_PICKER)
             i.putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_RINGTONE)
@@ -720,6 +738,26 @@ class MainActivity : BaseActivity() {
         }
     }
 
+    private fun copyRingtone(src: Uri): java.io.File? = try {
+        val dir = java.io.File(filesDir, "ringtones")
+        dir.mkdirs()
+        val name = "r" + (pendingRingKeys.firstOrNull() ?: "x") + "_" + System.currentTimeMillis()
+        val dst = java.io.File(dir, name)
+        val ok = contentResolver.openInputStream(src)?.use { ins ->
+            dst.outputStream().use { out -> ins.copyTo(out) }
+            true
+        } ?: false
+        if (ok && dst.length() > 0) {
+            dir.listFiles()?.filter { it.name.startsWith("r" + (pendingRingKeys.firstOrNull() ?: "x") + "_") && it != dst }?.forEach { it.delete() }
+            dst
+        } else {
+            dst.delete()
+            null
+        }
+    } catch (e: Exception) {
+        null
+    }
+
     @Suppress("DEPRECATION")
     private fun onRingtonePicked(data: Intent) {
         val picked: Uri? = data.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
@@ -728,8 +766,23 @@ class MainActivity : BaseActivity() {
             picked == Settings.System.DEFAULT_RINGTONE_URI -> null
             else -> picked.toString()
         }
-        Prefs.setRingFor(this, pendingRingKeys, value)
-        Toast.makeText(this, if (value == null) "Будет звучать стандартный рингтон" else "Рингтон абонента сохранён", Toast.LENGTH_SHORT).show()
+        var stored = value
+        var copied = true
+        if (picked != null && value != null) {
+            // копируем мелодию в память приложения: так она точно проиграется при звонке
+            val f = copyRingtone(picked)
+            if (f != null) stored = Uri.fromFile(f).toString() else copied = false
+        }
+        Prefs.setRingFor(this, pendingRingKeys, stored)
+        Toast.makeText(
+            this,
+            when {
+                value == null -> "Будет звучать стандартный рингтон"
+                !copied -> "Рингтон сохранён, но файл может не открыться — тогда зазвучит стандартный"
+                else -> "Рингтон абонента сохранён"
+            },
+            Toast.LENGTH_SHORT
+        ).show()
     }
 
     private fun personInfo(box: LinearLayout, nums: List<PhoneNum>, close: () -> Unit) {

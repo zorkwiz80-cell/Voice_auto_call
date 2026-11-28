@@ -96,6 +96,7 @@ object Ringer {
     fun titleOf(ctx: Context, value: String?): String {
         if (value == null) return "Стандартный"
         if (value == "silent") return "Без звука"
+        if (value.startsWith("file:")) return "Своя мелодия"
         return try {
             RingtoneManager.getRingtone(ctx, Uri.parse(value))?.getTitle(ctx) ?: "Свой рингтон"
         } catch (e: Exception) {
